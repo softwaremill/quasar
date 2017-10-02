@@ -19,28 +19,28 @@ package quasar.physical.rdbms
 import slamdata.Predef._
 import quasar.connector.{DefaultAnalyzeModule, BackendModule}
 import quasar.contrib.pathy.{AFile, APath}
-import quasar.contrib.scalaz.MonadReader_
-import quasar.effect.uuid.GenUUID
-import quasar.effect.{KeyValueStore, MonotonicSeq}
-import quasar.fp.{:/:, :\:}
-import quasar.fp.free._
+import quasar.contrib.scalaz._
+import quasar.fp._
+import free._
 import quasar.fs.MonadFsErr
-import quasar.fs.ReadFile.ReadHandle
+import quasar.fs.FileSystemError._
 import quasar.fs.mount.BackendDef.{DefErrT, DefinitionError}
 import quasar.fs.mount.ConnectionUri
 import quasar.physical.rdbms.fs._
-import quasar.qscript.{::/::, ::\::, EquiJoin, ExtractPath, Injectable, Optimize, QScriptCore, QScriptTotal, ShiftedRead, Unicoalesce, Unirewrite}
-import quasar.fs.WriteFile.WriteHandle
-import quasar.physical.rdbms.common.{Config, TablePath}
+import quasar.qscript._
+import quasar.physical.rdbms.common.Config
 import quasar.physical.rdbms.jdbc.JdbcConnectionInfo
-import quasar.{RenderTree, RenderTreeT, fp}
+import quasar.physical.rdbms.planner.{Planner, SqlExprBuilder}
+import quasar.Planner.PlannerError
 import quasar.qscript.analysis._
+import quasar.{RenderTree, RenderTreeT, fp}
 
 import scala.Predef.implicitly
 import doobie.hikari.hikaritransactor.HikariTransactor
-import doobie.imports.ConnectionIO
 import matryoshka.{BirecursiveT, Delay, EqualT, RecursiveT, ShowT}
 import matryoshka.data._
+import matryoshka._
+import matryoshka.implicits._
 
 import scalaz._
 import Scalaz._
@@ -48,19 +48,15 @@ import scalaz.concurrent.Task
 
 trait Rdbms extends BackendModule with RdbmsReadFile with RdbmsWriteFile with RdbmsManageFile with RdbmsQueryFile with Interpreter with DefaultAnalyzeModule {
 
-  type Eff[A] = (
-      ConnectionIO :\:
-      MonotonicSeq :\:
-      GenUUID :\:
-      KeyValueStore[ReadHandle, SqlReadCursor, ?] :/:
-      KeyValueStore[WriteHandle, TablePath, ?]
-  )#M[A]
+  type Eff[A] = model.Eff[A]
+  type QS[T[_[_]]] = model.QS[T]
+  type Repr = model.Repr
+  type M[A] = model.M[A]
 
-  type QS[T[_[_]]] = QScriptCore[T, ?] :\: EquiJoin[T, ?] :/: Const[ShiftedRead[AFile], ?]
-  type Repr        = String // TODO define best Repr for a SQL query (Doobie Fragment?)
-  type M[A]        = Free[Eff, A]
+  type Config = model.Config
 
-  type Config = common.Config
+  // TODO[scalaz]: Shadow the scalaz.Monad.monadMTMAB SI-2712 workaround
+  import EitherT.eitherTMonad
 
   implicit class LiftEffBackend[F[_], A](m: F[A])(implicit I: F :<: Eff) {
     val liftB: Backend[A] = lift(m).into[Eff].liftB
@@ -109,10 +105,14 @@ trait Rdbms extends BackendModule with RdbmsReadFile with RdbmsWriteFile with Rd
   lazy val MR                   = MonadReader_[Backend, Config]
   lazy val ME                   = MonadFsErr[Backend]
 
+  implicit def sqlExprBuilder: SqlExprBuilder
+
   def plan[T[_[_]]: BirecursiveT: EqualT: ShowT: RenderTreeT](
       cp: T[QSM[T, ?]]): Backend[Repr] = {
-    ???
-  } // TODO
+    type RdbmsState[S[_], A] = EitherT[Free[S, ?], PlannerError, A]
+    val planner = Planner[QSM[T, ?], RdbmsState[Eff, ?]]
+    cp.cataM(planner.plan(sqlExprBuilder)).run.map(_.leftMap(pe => qscriptPlanningFailed(pe))).liftB.unattempt
+  }
 
   def parseConnectionUri(uri: ConnectionUri): \/[DefinitionError, JdbcConnectionInfo]
 }

@@ -25,10 +25,12 @@ import quasar.fs.mount.ConnectionUri
 import quasar.physical.rdbms.Rdbms
 import quasar.physical.rdbms.fs._
 import quasar.physical.rdbms.jdbc.JdbcConnectionInfo
-
 import java.net.URI
 
 import doobie.util.meta.Meta
+import quasar.physical.rdbms.fs.postgres.planner.PostgresSqlExprBuilder
+import quasar.physical.rdbms.planner.SqlExprBuilder
+
 import scalaz.{-\/, NonEmptyList, \/, \/-}
 import scalaz.syntax.either._
 
@@ -74,5 +76,6 @@ object Postgres
     connectionInfo.leftMap(_.left[EnvironmentError])
   }
 
+  override lazy val sqlExprBuilder: SqlExprBuilder = PostgresSqlExprBuilder
   override lazy val dataMeta: Meta[Data] = postgres.mapping.JsonDataMeta
 }

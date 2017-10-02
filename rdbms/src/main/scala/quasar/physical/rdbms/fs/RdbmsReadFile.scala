@@ -55,7 +55,7 @@ trait RdbmsReadFile extends RdbmsDescribeTable {
         offset: Int,
         limit: Option[Int]
     ): ConnectionIO[Vector[Data]] = {
-      val streamWithOffset = (fr"select * from" ++ Fragment.const(dbPath.shows))
+      val streamWithOffset = (fr"select data from" ++ Fragment.const(dbPath.shows))
         .query[Data]
         .process
         .drop(offset)
