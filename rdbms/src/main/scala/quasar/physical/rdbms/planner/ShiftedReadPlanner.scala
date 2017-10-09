@@ -16,21 +16,33 @@
 
 package quasar.physical.rdbms.planner
 
+import slamdata.Predef._
 import quasar.contrib.pathy.AFile
 import quasar.qscript._
-import matryoshka.AlgebraM
+import quasar.physical.rdbms.common.TablePath
+import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
+import quasar.physical.rdbms.planner.sql.SqlExpr._
+import quasar.physical.rdbms.planner.sql.SqlExpr
 
-import scalaz.Applicative
-import scalaz.Const
-import scalaz.syntax.applicative._
+import matryoshka._
+import matryoshka.implicits._
+import scalaz._
+import Scalaz._
 
-class ShiftedReadPlanner[F[_]: Applicative] extends Planner[Const[ShiftedRead[AFile], ?], F] {
+class ShiftedReadPlanner[T[_[_]]: CorecursiveT, F[_]: Applicative] extends Planner[T, F, Const[ShiftedRead[AFile], ?]] {
 
-  import Planner._
+  def id(v: String): SqlExpr.Id[T[SqlExpr]] = quasar.physical.rdbms.planner.sql.SqlExpr.Id[T[SqlExpr]](v)
 
-  def plan(expr: SqlExprBuilder): AlgebraM[F, Const[ShiftedRead[AFile], ?], Repr] = {
+  def plan: AlgebraM[F, Const[ShiftedRead[AFile], ?], T[SqlExpr]] = {
     case Const(semantics) =>
-      expr.selectAll(semantics).point[F]
+      val table = Table(id(TablePath.create(semantics.path).shows).embed)
+      val filter = None
+      val fields: Fields[T[SqlExpr]] = semantics.idStatus match {
+        case IdOnly => RowIds()
+        case ExcludeId => AllCols()
+        case IncludeId => WithIds(AllCols())
+      }
+      Select(fields, table, filter).embed.point[F]
   }
 
 }

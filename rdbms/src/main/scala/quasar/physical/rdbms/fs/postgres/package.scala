@@ -16,13 +16,18 @@
 
 package quasar.physical.rdbms.fs
 
+import doobie.util.fragment.Fragment
 import quasar.physical.rdbms.common.{CustomSchema, DefaultSchema, Schema}
 import quasar.physical.rdbms.common._
+
 import scalaz.Show
 
 package object postgres {
 
   val DefaultSchemaName = "public"
+
+  val JsonFieldName = "data"
+  val JsonFieldFragment: Fragment = Fragment.const(JsonFieldName)
 
   implicit val showSchema: Show[Schema] = Show.shows {
     case DefaultSchema => DefaultSchemaName

@@ -23,25 +23,27 @@ import quasar.contrib.scalaz._
 import quasar.fp._
 import free._
 import quasar.fs.MonadFsErr
-import quasar.fs.FileSystemError._
 import quasar.fs.mount.BackendDef.{DefErrT, DefinitionError}
 import quasar.fs.mount.ConnectionUri
 import quasar.physical.rdbms.fs._
 import quasar.qscript._
 import quasar.physical.rdbms.common.Config
+import quasar.fs.FileSystemError._
+import quasar.common.PhaseResult._
 import quasar.physical.rdbms.jdbc.JdbcConnectionInfo
-import quasar.physical.rdbms.planner.{Planner, SqlExprBuilder}
+import quasar.physical.rdbms.planner.Planner
 import quasar.Planner.PlannerError
 import quasar.qscript.analysis._
 import quasar.{RenderTree, RenderTreeT, fp}
+import quasar.Planner.PlannerError
+import quasar.common.PhaseResults
+import quasar.physical.rdbms.planner.Planner
 
 import scala.Predef.implicitly
-import doobie.hikari.hikaritransactor.HikariTransactor
-import matryoshka.{BirecursiveT, Delay, EqualT, RecursiveT, ShowT}
-import matryoshka.data._
-import matryoshka._
-import matryoshka.implicits._
 
+import doobie.hikari.hikaritransactor.HikariTransactor
+import matryoshka._, data._
+import matryoshka.implicits._
 import scalaz._
 import Scalaz._
 import scalaz.concurrent.Task
@@ -104,14 +106,19 @@ trait Rdbms extends BackendModule with RdbmsReadFile with RdbmsWriteFile with Rd
 
   lazy val MR                   = MonadReader_[Backend, Config]
   lazy val ME                   = MonadFsErr[Backend]
-
-  implicit def sqlExprBuilder: SqlExprBuilder
+  lazy val MT                   = MonadTell_[Backend, PhaseResults]
 
   def plan[T[_[_]]: BirecursiveT: EqualT: ShowT: RenderTreeT](
       cp: T[QSM[T, ?]]): Backend[Repr] = {
-    type RdbmsState[S[_], A] = EitherT[Free[S, ?], PlannerError, A]
-    val planner = Planner[QSM[T, ?], RdbmsState[Eff, ?]]
-    cp.cataM(planner.plan(sqlExprBuilder)).run.map(_.leftMap(pe => qscriptPlanningFailed(pe))).liftB.unattempt
+    val planner = Planner[T, EitherT[Free[Eff, ?], PlannerError, ?], QSM[T, ?]]
+    for {
+     plan <- ME.unattempt(cp.cataM(planner.plan)
+      .bimap(qscriptPlanningFailed(_),
+      _.convertTo[Repr])
+      .run.liftB)
+     _ <- MT.tell(Vector(detail("SQL AST", RenderTreeT[Mu].render(plan).shows)))
+    }
+      yield plan
   }
 
   def parseConnectionUri(uri: ConnectionUri): \/[DefinitionError, JdbcConnectionInfo]

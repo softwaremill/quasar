@@ -21,58 +21,71 @@ import quasar.fp.ski._
 import quasar.Planner._
 import quasar.contrib.pathy.{ADir, AFile}
 import quasar.qscript._
-import matryoshka.{AlgebraM, BirecursiveT, ShowT}
+import quasar.NameGenerator
+import quasar.physical.rdbms.planner.sql.SqlExpr
 
+import matryoshka._
 import scalaz._
 
-trait Planner[QS[_], F[_]] extends Serializable {
-  import Planner._
+trait Planner[T[_[_]], F[_], QS[_]] extends Serializable {
 
-  def plan(expr: SqlExprBuilder): AlgebraM[F, QS, Repr]
+  def plan: AlgebraM[F, QS, T[SqlExpr]]
 }
 
 object Planner {
-  type Repr = quasar.physical.rdbms.model.Repr
 
-  def apply[QS[_], F[_]](implicit P: Planner[QS, F]): Planner[QS, F] = P
+  def apply[T[_[_]], F[_], QS[_]](
+      implicit P: Planner[T, F, QS]): Planner[T, F, QS] = P
 
-  implicit def deadEnd[F[_]: PlannerErrorME]: Planner[Const[DeadEnd, ?], F] =
+  implicit def constDeadEndPlanner[T[_[_]], F[_]: PlannerErrorME]
+    : Planner[T, F, Const[DeadEnd, ?]] =
     unreachable("deadEnd")
 
-  implicit def read[A, F[_]: PlannerErrorME]: Planner[Const[Read[A], ?], F] =
+  implicit def constReadPlanner[T[_[_]], F[_]: PlannerErrorME, A]
+    : Planner[T, F, Const[Read[A], ?]] =
     unreachable("read")
 
-  implicit def shiftedReadPath[F[_]: PlannerErrorME]
-    : Planner[Const[ShiftedRead[ADir], ?], F] =
+  implicit def constShiftedReadDirPlanner[T[_[_]], F[_]: PlannerErrorME]
+    : Planner[T, F, Const[ShiftedRead[ADir], ?]] =
     unreachable("shifted read of a dir")
 
-  implicit def projectBucket[T[_[_]], F[_]: PlannerErrorME]
-    : Planner[ProjectBucket[T, ?], F] = unreachable("projectBucket")
+  implicit def constShiftedReadFilePlanner[
+  T[_[_]]: CorecursiveT,
+  F[_]: Applicative: NameGenerator]
+  : Planner[T, F, Const[ShiftedRead[AFile], ?]] =
+    new ShiftedReadPlanner[T, F]
 
-  implicit def thetaJoin[T[_[_]], F[_]: PlannerErrorME]
-    : Planner[ThetaJoin[T, ?], F] = unreachable("thetajoin")
+  implicit def projectBucketPlanner[T[_[_]]: RecursiveT: ShowT, F[_]: PlannerErrorME]
+  : Planner[T, F, ProjectBucket[T, ?]] =
+    unreachable("projectBucket")
 
-  implicit def shiftedread[F[_]: Applicative]
-    : Planner[Const[ShiftedRead[AFile], ?], F] = new ShiftedReadPlanner[F]
 
-  implicit def qscriptCore[T[_[_]]: BirecursiveT: ShowT, F[_]: PlannerErrorME]
-    : Planner[QScriptCore[T, ?], F] = unreachable("TODO")
+  implicit def thetaJoinPlanner[T[_[_]]: RecursiveT: ShowT, F[_]: PlannerErrorME]
+  : Planner[T, F, ThetaJoin[T, ?]] = unreachable("thetajoin")
 
-  implicit def equiJoin[T[_[_]]: BirecursiveT: ShowT, F[_]: PlannerErrorME]
-    : Planner[EquiJoin[T, ?], F] = unreachable("TODO")
 
-  implicit def coproduct[QS[_], G[_], F[_]](
-      implicit F: Planner[QS, F],
-      G: Planner[G, F]): Planner[Coproduct[QS, G, ?], F] =
-    new Planner[Coproduct[QS, G, ?], F] {
-      def plan(expr: SqlExprBuilder): AlgebraM[F, Coproduct[QS, G, ?], Repr] =
-        _.run.fold(F.plan(expr), G.plan(expr))
+  implicit def qScriptCorePlanner[
+  T[_[_]]: BirecursiveT: ShowT,
+  F[_]: Monad: NameGenerator: PlannerErrorME]
+  : Planner[T, F, QScriptCore[T, ?]] = unreachable("QScript core")
+
+  implicit def equiJoinPlanner[
+  T[_[_]]: BirecursiveT: ShowT,
+  F[_]: Monad: NameGenerator: PlannerErrorME]
+  : Planner[T, F, EquiJoin[T, ?]] = unreachable("equijoin")
+
+  implicit def coproduct[T[_[_]], N[_], F[_], G[_]](
+                                                     implicit F: Planner[T, N, F], G: Planner[T, N, G]
+                                                   ): Planner[T, N, Coproduct[F, G, ?]] =
+    new Planner[T, N, Coproduct[F, G, ?]] {
+      val plan: AlgebraM[N, Coproduct[F, G, ?], T[SqlExpr]] =
+        _.run.fold(F.plan, G.plan)
     }
 
-  private def unreachable[QS[_], F[_]: PlannerErrorME](
-      what: String): Planner[QS, F] =
-    new Planner[QS, F] {
-      override def plan(expr: SqlExprBuilder): AlgebraM[F, QS, Repr] =
+  private def unreachable[T[_[_]], F[_]: PlannerErrorME, QS[_]](
+      what: String): Planner[T, F, QS] =
+    new Planner[T, F, QS] {
+      override def plan: AlgebraM[F, QS, T[SqlExpr]] =
         κ(
           PlannerErrorME[F].raiseError(
             InternalError.fromMsg(s"unreachable $what")))

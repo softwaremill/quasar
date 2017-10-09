@@ -17,7 +17,7 @@
 package quasar.physical.rdbms
 
 import doobie.imports.ConnectionIO
-import doobie.util.fragment.Fragment
+import matryoshka.data.Mu
 import quasar.contrib.pathy.AFile
 import quasar.effect.{KeyValueStore, MonotonicSeq}
 import quasar.effect.uuid.GenUUID
@@ -26,6 +26,7 @@ import quasar.fs.ReadFile.ReadHandle
 import quasar.fs.WriteFile.WriteHandle
 import quasar.physical.rdbms.common.TablePath
 import quasar.physical.rdbms.fs.SqlReadCursor
+import quasar.physical.rdbms.planner.sql.SqlExpr
 import quasar.qscript.{EquiJoin, QScriptCore, ShiftedRead}
 
 import scalaz.concurrent.Task
@@ -34,7 +35,7 @@ import scalaz.{Const, Free}
 package object model {
 
   type Eff[A] = (
-  Task :\:
+    Task :\:
     ConnectionIO :\:
       MonotonicSeq :\:
       GenUUID :\:
@@ -43,7 +44,7 @@ package object model {
     )#M[A]
 
   type QS[T[_[_]]] = QScriptCore[T, ?] :\: EquiJoin[T, ?] :/: Const[ShiftedRead[AFile], ?]
-  type Repr        = Fragment
+  type Repr        = Mu[SqlExpr]
   type M[A]        = Free[Eff, A]
 
   type Config = common.Config

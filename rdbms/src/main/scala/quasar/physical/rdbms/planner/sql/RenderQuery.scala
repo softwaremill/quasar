@@ -14,21 +14,15 @@
  * limitations under the License.
  */
 
-package quasar.physical.rdbms.planner
+  
+package quasar.physical.rdbms.planner.sql
 
-import doobie.util.fragment.Fragment
-import quasar.contrib.pathy.AFile
-import quasar.qscript.ShiftedRead
+import slamdata.Predef._
+import quasar.Planner.PlannerError
 
-/**
-  * Abstracts out SQL expression building.
-  */
-trait SqlExprBuilder {
+import matryoshka._
+import scalaz.\/
 
-  /**
-    * IncludeId needs to return a vector of JSONs like: [ (Data.Arr(Data.Int(1), dataRow1), (Data.Arr(Data.Int(2), dataRow12), ... ]
-    * IdOnly needs to return a vector of JSONs like: [Data.Int(1), Data.Int(2), ...]
-    * ExcludedId needs to return a vector of JSONS like: [ dataRow1, dataRow2, ...]
-    */
-  def selectAll(semantics: ShiftedRead[AFile]): Fragment
+trait RenderQuery {
+  def compact[T[_[_]]: BirecursiveT](a: T[SqlExpr]): PlannerError \/ String
 }
