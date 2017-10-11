@@ -22,9 +22,9 @@ import quasar.Planner._
 import quasar.contrib.pathy.{ADir, AFile}
 import quasar.qscript._
 import quasar.NameGenerator
-import quasar.physical.rdbms.planner.sql.SqlExpr
-
+import quasar.physical.rdbms.planner.sql.{QScriptCorePlanner, SqlExpr}
 import matryoshka._
+
 import scalaz._
 
 trait Planner[T[_[_]], F[_], QS[_]] extends Serializable {
@@ -67,7 +67,7 @@ object Planner {
   implicit def qScriptCorePlanner[
   T[_[_]]: BirecursiveT: ShowT,
   F[_]: Monad: NameGenerator: PlannerErrorME]
-  : Planner[T, F, QScriptCore[T, ?]] = unreachable("QScript core")
+: Planner[T, F, QScriptCore[T, ?]] = new QScriptCorePlanner[T, F]
 
   implicit def equiJoinPlanner[
   T[_[_]]: BirecursiveT: ShowT,
