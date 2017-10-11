@@ -16,18 +16,17 @@
 
 package quasar.physical.rdbms.fs.postgres
 
-
 import slamdata.Predef._
 import quasar.{Data, DataCodec}
-import doobie.util.meta.Meta
-import doobie.enum.jdbctype.{JdbcType, VarChar}
-import doobie.util.composite.Composite
-import doobie.util.kernel.Kernel
+
 import java.sql.{PreparedStatement, ResultSet}
 
 import doobie.enum.jdbctype
+import doobie.enum.jdbctype.{JdbcType, VarChar}
+import doobie.util.composite.Composite
+import doobie.util.kernel.Kernel
+import doobie.util.meta.Meta
 import org.postgresql.util.PGobject
-
 import scalaz.syntax.show._
 import scalaz.syntax.equal._
 import scalaz.std.string._

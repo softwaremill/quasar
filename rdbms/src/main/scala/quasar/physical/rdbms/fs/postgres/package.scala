@@ -16,10 +16,9 @@
 
 package quasar.physical.rdbms.fs
 
-import doobie.util.fragment.Fragment
-import quasar.physical.rdbms.common.{CustomSchema, DefaultSchema, Schema}
 import quasar.physical.rdbms.common._
 
+import doobie.util.fragment.Fragment
 import scalaz.Show
 
 package object postgres {
