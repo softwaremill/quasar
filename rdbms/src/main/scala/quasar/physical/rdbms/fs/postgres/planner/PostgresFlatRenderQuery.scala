@@ -18,7 +18,6 @@ package quasar.physical.rdbms.fs.postgres.planner
 
 import slamdata.Predef._
 import quasar.Planner.PlannerError
-import quasar.physical.rdbms.fs.postgres.JsonFieldName
 import quasar.physical.rdbms.planner.sql.{RenderQuery, SqlExpr}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import matryoshka._
@@ -47,9 +46,9 @@ object PostgresFlatRenderQuery extends RenderQuery {
     case Select(fields, table, filterOpt) =>
       val fieldsStr = fields match {
         case AllCols() =>
-          JsonFieldName
+          "*"
         case WithIds(AllCols()) =>
-          s"row_number() over(),$JsonFieldName"
+          s"row_number() over(), *"
         case WithIds(SomeCols(names)) =>
           s"row_number() over(),${names.mkString(",")}"
         case RowIds() =>
