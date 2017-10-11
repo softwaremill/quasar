@@ -18,9 +18,11 @@ package quasar.physical.rdbms.planner.sql
 
 import slamdata.Predef._
 import quasar.{NonTerminal, RenderTree, RenderedTree, Terminal}
+import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 
 import matryoshka.Delay
-import scalaz._, Scalaz._
+import scalaz._
+import Scalaz._
 
 trait SqlExprRenderTree {
 
@@ -30,6 +32,15 @@ trait SqlExprRenderTree {
     new Delay[RenderTree, SqlExpr] {
       def apply[A](r: RenderTree[A]): RenderTree[SqlExpr[A]] = {
 
+        def renderFields[A](fields: Fields[A]): String =
+          fields match {
+            case AllCols()                => "*"
+            case RowIds()                 => "(row ids)"
+            case WithIds(AllCols())       => "(row ids, *)"
+            case WithIds(SomeCols(names)) => names.mkString(",")
+            case SomeCols(names)          => names.mkString(",")
+          }
+
         def nonTerminal(typ: String, c: A*): RenderedTree =
           NonTerminal(typ :: Nil, none, c.toList.map(r.render))
 
@@ -38,9 +49,17 @@ trait SqlExprRenderTree {
             Terminal("Id" :: Nil, v.some)
           case Table(v) =>
             nonTerminal("Table", v)
-          case Select(_, _, _) =>
-            Terminal("SELECT(TODO)" :: Nil, Some("TODO"))
+          case Select(fields, table, filter) =>
+            def nt(tpe: String, label: Option[String], child: A) =
+              NonTerminal(tpe :: Nil, label, List(r.render(child)))
 
+            NonTerminal(
+              "Select" :: Nil,
+              none,
+              Terminal("fields" :: Nil, renderFields(fields).some) ::
+                nt("table", none, table.expr) ::
+                (filter ∘ (f => nt("filter", none, f.v))).toList
+            )
         }
       }
     }
