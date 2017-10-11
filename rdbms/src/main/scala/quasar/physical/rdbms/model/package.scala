@@ -17,7 +17,7 @@
 package quasar.physical.rdbms
 
 import doobie.imports.ConnectionIO
-import matryoshka.data.Mu
+import matryoshka.data.Fix
 import quasar.contrib.pathy.AFile
 import quasar.effect.{KeyValueStore, MonotonicSeq}
 import quasar.effect.uuid.GenUUID
@@ -44,7 +44,7 @@ package object model {
     )#M[A]
 
   type QS[T[_[_]]] = QScriptCore[T, ?] :\: EquiJoin[T, ?] :/: Const[ShiftedRead[AFile], ?]
-  type Repr        = Mu[SqlExpr]
+  type Repr        = Fix[SqlExpr]
   type M[A]        = Free[Eff, A]
 
   type Config = common.Config

@@ -116,7 +116,7 @@ trait Rdbms extends BackendModule with RdbmsReadFile with RdbmsWriteFile with Rd
       .bimap(qscriptPlanningFailed(_),
       _.convertTo[Repr])
       .run.liftB)
-     _ <- MT.tell(Vector(detail("SQL AST", RenderTreeT[Mu].render(plan).shows)))
+     _ <- MT.tell(Vector(detail("SQL AST", RenderTreeT[Fix].render(plan).shows)))
     }
       yield plan
   }
