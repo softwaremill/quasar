@@ -16,8 +16,6 @@
 
 package quasar.physical.rdbms
 
-import doobie.imports.ConnectionIO
-import matryoshka.data.Fix
 import quasar.contrib.pathy.AFile
 import quasar.effect.{KeyValueStore, MonotonicSeq}
 import quasar.effect.uuid.GenUUID
@@ -29,13 +27,13 @@ import quasar.physical.rdbms.fs.SqlReadCursor
 import quasar.physical.rdbms.planner.sql.SqlExpr
 import quasar.qscript.{EquiJoin, QScriptCore, ShiftedRead}
 
-import scalaz.concurrent.Task
+import doobie.imports.ConnectionIO
+import matryoshka.data.Fix
 import scalaz.{Const, Free}
 
 package object model {
 
   type Eff[A] = (
-    Task :\:
     ConnectionIO :\:
       MonotonicSeq :\:
       GenUUID :\:
