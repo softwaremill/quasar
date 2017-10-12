@@ -19,6 +19,7 @@ package quasar.physical.rdbms.planner.sql
 import slamdata.Predef._
 import quasar._
 import quasar.common.{PhaseResult, PhaseResultT, PhaseResultTell, PhaseResults}
+import quasar.contrib.pathy._
 import quasar.contrib.scalaz.MonadError_
 import quasar.fp.ski.ι
 import quasar.frontend.logicalplan.LogicalPlan
@@ -28,17 +29,17 @@ import quasar.physical.rdbms.fs.postgres.Postgres
 import quasar.physical.rdbms.model.Repr
 import quasar.physical.rdbms.planner.Planner
 import quasar.Planner.PlannerError
-import quasar.qscript.DiscoverPath
+import quasar.qscript._
 import quasar.sql._
 
 import eu.timepit.refined.auto._
 import matryoshka._
-import matryoshka.implicits._
 import matryoshka.data._
+import matryoshka.implicits._
 import org.specs2.execute.NoDetails
 import org.specs2.matcher._
 import pathy.Path
-import pathy.Path.{DirName, FileName, Sandboxed, dir, rootDir}
+import pathy.Path._
 import scalaz._
 import Scalaz._
 import scalaz.concurrent.Task
@@ -129,7 +130,6 @@ class PlannerSpec extends Qspec {
   def qsToRepr[T[_[_]]: BirecursiveT: EqualT: ShowT: RenderTreeT](
       cp: T[QSM[T, ?]]): Repr = {
     val planner = Planner[T, Task, QSM[T, ?]]
-    println(planner.getClass)
     cp.cataM(planner.plan).map(_.convertTo[Repr]).unsafePerformSync
   }
 
@@ -141,12 +141,38 @@ class PlannerSpec extends Qspec {
   import SqlExpr._
   import SqlExpr.Select._
 
-  "RDBMS Planner" should {
+  "Shifted read" should {
+    type SR[A] = Const[ShiftedRead[AFile], A]
 
-    "build shifted read" in {
-
+    "build plan for column wildcard" in {
       plan(sqlE"select * from foo") must
         beRepr(Select(AllCols(), Table(id("db.foo")), filter = None))
+    }
+
+    def expectShiftedReadRepr(forIdStatus: IdStatus, expectedRepr: SqlExpr[Fix[SqlExpr]]) = {
+      val path: AFile = rootDir </> dir("db") </> file("foo")
+
+      val qs: Fix[SR] = Fix(Inject[SR, SR].inj(Const(ShiftedRead(path, forIdStatus))))
+      val planner = Planner.constShiftedReadFilePlanner[Fix, Task]
+      val repr = qs.cataM(planner.plan).map(_.convertTo[Repr]).unsafePerformSync
+
+      repr.right[FileSystemError] must
+        beRepr(expectedRepr)
+    }
+
+    "build plan including ids" in {
+      expectShiftedReadRepr(forIdStatus = IncludeId,
+        expectedRepr = Select(WithIds(AllCols()), Table(id("db.foo")), filter = None))
+    }
+
+    "build plan only for ids" in {
+      expectShiftedReadRepr(forIdStatus = IdOnly,
+        expectedRepr = Select(RowIds(), Table(id("db.foo")), filter = None))
+    }
+
+    "build plan only for excluded ids" in {
+      expectShiftedReadRepr(forIdStatus = ExcludeId,
+        expectedRepr = Select(AllCols(), Table(id("db.foo")), filter = None))
     }
   }
 }
