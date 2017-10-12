@@ -17,6 +17,7 @@
 package quasar.physical.rdbms.fs.postgres
 
 import slamdata.Predef._
+import planner.PostgresFlatRenderQuery
 import quasar.connector.EnvironmentError
 import quasar.Data
 import quasar.fs.FileSystemType
@@ -25,6 +26,7 @@ import quasar.fs.mount.ConnectionUri
 import quasar.physical.rdbms.Rdbms
 import quasar.physical.rdbms.fs._
 import quasar.physical.rdbms.jdbc.JdbcConnectionInfo
+import quasar.physical.rdbms.planner.sql.RenderQuery
 
 import java.net.URI
 
@@ -75,4 +77,5 @@ object Postgres
   }
 
   override lazy val dataMeta: Meta[Data] = postgres.mapping.JsonDataMeta
+  override lazy val renderQuery: RenderQuery = PostgresFlatRenderQuery // TODO or JSON
 }

@@ -16,6 +16,7 @@
 
 package quasar.physical.rdbms.fs
 
+import doobie.util.fragment.Fragment
 import slamdata.Predef._
 import quasar.contrib.pathy.{ADir, AFile, PathSegment}
 import quasar.Data
@@ -27,7 +28,9 @@ import quasar.physical.rdbms.Rdbms
 import quasar.physical.rdbms.common.{Schema, TablePath}
 import quasar.physical.rdbms.common.TablePath.showTableName
 import pathy.Path
+import quasar.physical.rdbms.planner.sql.RenderQuery
 
+import doobie.syntax.string._
 import scalaz.{-\/, Monad, \/-}
 import scalaz.syntax.monad._
 import scalaz.syntax.show._
@@ -41,9 +44,17 @@ trait RdbmsQueryFile {
   import QueryFile._
   implicit def MonadM: Monad[M]
 
+  def renderQuery: RenderQuery
+
   def QueryFileModule: QueryFileModule = new QueryFileModule {
 
-    override def explain(repr: Repr): Backend[String] = ???
+    override def explain(repr: Repr): Backend[String] = {
+      (fr"explain" ++ Fragment
+        .const(renderQuery.asString(repr)))
+        .query[String]
+        .unique
+        .liftB
+    }
 
     override def executePlan(repr: Repr, out: AFile): Backend[Unit] = ???
 
