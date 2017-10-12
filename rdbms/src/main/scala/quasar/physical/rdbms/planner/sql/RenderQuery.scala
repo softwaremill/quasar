@@ -18,11 +18,9 @@
 package quasar.physical.rdbms.planner.sql
 
 import slamdata.Predef._
-import quasar.Planner.PlannerError
 
 import matryoshka._
-import scalaz.\/
 
 trait RenderQuery {
-  def compact[T[_[_]]: BirecursiveT](a: T[SqlExpr]): PlannerError \/ String
+  def asString[T[_[_]]: BirecursiveT](a: T[SqlExpr]): String
 }

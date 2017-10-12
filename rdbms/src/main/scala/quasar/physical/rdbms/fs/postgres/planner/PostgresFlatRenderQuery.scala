@@ -17,7 +17,6 @@
 package quasar.physical.rdbms.fs.postgres.planner
 
 import slamdata.Predef._
-import quasar.Planner.PlannerError
 import quasar.physical.rdbms.planner.sql.{RenderQuery, SqlExpr}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import matryoshka._
@@ -29,7 +28,7 @@ import Scalaz._
 object PostgresFlatRenderQuery extends RenderQuery {
   import SqlExpr._
 
-  def compact[T[_[_]]: BirecursiveT](a: T[SqlExpr]): PlannerError \/ String = {
+  def asString[T[_[_]]: BirecursiveT](a: T[SqlExpr]): String = {
     val q = a.cataM(alg)
 
     a.project match {
@@ -38,25 +37,24 @@ object PostgresFlatRenderQuery extends RenderQuery {
     }
   }
 
-  val alg: AlgebraM[PlannerError \/ ?, SqlExpr, String] = {
+
+  val alg: AlgebraM[Scalaz.Id, SqlExpr, String] = {
     case SqlExpr.Id(v) =>
-      s"'$v'".right
+      s"'$v'"
     case SqlExpr.Table(v) =>
-      v.right
+      v
     case Select(fields, table, filterOpt) =>
       val fieldsStr = fields match {
-        case AllCols() =>
+        case AllCols() | WithIds(AllCols()) =>
           "*"
-        case WithIds(AllCols()) =>
-          s"row_number() over(), *"
         case WithIds(SomeCols(names)) =>
-          s"row_number() over(),${names.mkString(",")}"
-        case RowIds() =>
-          s"row_number() over()"
+          names.mkString(",")
         case SomeCols(names) =>
           names.mkString(",")
+        case RowIds() =>
+          "1"
       }
       val filter = ~(filterOpt ∘ (f => s"where ${f.v}"))
-      s"$fieldsStr from ${table.expr} $filter".right
+      s"$fieldsStr from ${table.expr} $filter"
   }
 }
