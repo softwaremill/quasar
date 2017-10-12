@@ -26,9 +26,10 @@ import quasar.physical.rdbms.common.TablePath
 import quasar.physical.rdbms.fs.SqlReadCursor
 import quasar.physical.rdbms.planner.sql.SqlExpr
 import quasar.qscript.{EquiJoin, QScriptCore, ShiftedRead}
-
 import doobie.imports.ConnectionIO
 import matryoshka.data.Fix
+import quasar.fs.QueryFile.ResultHandle
+
 import scalaz.{Const, Free}
 
 package object model {
@@ -37,6 +38,7 @@ package object model {
     ConnectionIO :\:
       MonotonicSeq :\:
       GenUUID :\:
+      KeyValueStore[ResultHandle, SqlReadCursor, ?] :\:
       KeyValueStore[ReadHandle, SqlReadCursor, ?] :/:
       KeyValueStore[WriteHandle, TablePath, ?]
     )#M[A]

@@ -25,8 +25,9 @@ import quasar.fs.ReadFile.ReadHandle
 import quasar.fs.WriteFile.WriteHandle
 import quasar.physical.rdbms.common.TablePath
 import quasar.physical.rdbms.fs.SqlReadCursor
-
 import doobie.imports.Transactor
+import quasar.fs.QueryFile.ResultHandle
+
 import scalaz.concurrent.Task
 import scalaz.syntax.applicative._
 import scalaz.~>
@@ -38,14 +39,16 @@ trait Interpreter {
     (
       TaskRef(Map.empty[ReadHandle, SqlReadCursor]) |@|
         TaskRef(Map.empty[WriteHandle, TablePath]) |@|
+        TaskRef(Map.empty[ResultHandle, SqlReadCursor]) |@|
         xa.map(_.trans) |@|
         TaskRef(0L) |@|
         GenUUID.type1[Task]
     )(
-      (kvR, kvW, x, i, genUUID) =>
+      (kvR, kvW, kvRes, x, i, genUUID) =>
           x :+:
           MonotonicSeq.fromTaskRef(i) :+:
           genUUID :+:
+          KeyValueStore.impl.fromTaskRef(kvRes) :+:
           KeyValueStore.impl.fromTaskRef(kvR) :+:
           KeyValueStore.impl.fromTaskRef(kvW))
 }

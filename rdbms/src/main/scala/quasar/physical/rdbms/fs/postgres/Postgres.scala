@@ -27,10 +27,12 @@ import quasar.physical.rdbms.Rdbms
 import quasar.physical.rdbms.fs._
 import quasar.physical.rdbms.jdbc.JdbcConnectionInfo
 import quasar.physical.rdbms.planner.sql.RenderQuery
-
 import java.net.URI
 
+import doobie.util.composite.Composite
 import doobie.util.meta.Meta
+import quasar.physical.rdbms.fs.postgres.mapping.DataComposite
+
 import scalaz.{-\/, NonEmptyList, \/, \/-}
 import scalaz.syntax.either._
 
@@ -78,4 +80,5 @@ object Postgres
 
   override lazy val dataMeta: Meta[Data] = postgres.mapping.JsonDataMeta
   override lazy val renderQuery: RenderQuery = PostgresFlatRenderQuery // TODO or JSON
+  override lazy val createComposite: Repr => Composite[Data] = new DataComposite(_)
 }
