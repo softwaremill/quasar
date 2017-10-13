@@ -16,7 +16,6 @@
 
 package quasar.physical.rdbms.fs
 
-import doobie.util.fragment.Fragment
 import slamdata.Predef._
 import quasar.contrib.pathy.{ADir, AFile, PathSegment}
 import quasar.Data
@@ -30,10 +29,11 @@ import quasar.physical.rdbms.common.{Schema, TablePath}
 import quasar.physical.rdbms.common.TablePath.showTableName
 import pathy.Path
 import quasar.physical.rdbms.planner.sql.RenderQuery
-import doobie.syntax.string._
-import doobie.util.composite.Composite
 import quasar.effect.{KeyValueStore, MonotonicSeq}
 
+import doobie.syntax.string._
+import doobie.util.fragment.Fragment
+import doobie.util.composite.Composite
 import scalaz._
 import Scalaz._
 
@@ -53,28 +53,32 @@ trait RdbmsQueryFile {
   def QueryFileModule: QueryFileModule = new QueryFileModule {
 
     override def explain(repr: Repr): Backend[String] = {
-      (fr"explain" ++ Fragment
-        .const(renderQuery.asString(repr)))
+      ME.unattempt(renderQuery.asString(repr).leftMap(qscriptPlanningFailed(_)).traverse { q =>
+        (fr"explain" ++ Fragment.const(q))
         .query[String]
         .unique
         .liftB
+      })
     }
 
     override def executePlan(repr: Repr, out: AFile): Backend[Unit] = ???
 
     override def evaluatePlan(repr: Repr): Backend[ResultHandle] = {
-      val loadedData = Fragment
-        .const(renderQuery.asString(repr))
-        .query[Data](createComposite(repr))
-        .vector
-        .liftB
+      ME.unattempt(renderQuery.asString(repr).leftMap(qscriptPlanningFailed(_)).traverse { q =>
 
-      for {
-        i <- MonotonicSeq.Ops[Eff].next.liftB
-        handle = ResultHandle(i)
-        data <- loadedData
-        _ <- kvs.put(handle, SqlReadCursor(data)).liftB
-      } yield handle
+        val loadedData = Fragment
+          .const(q)
+          .query[Data](createComposite(repr))
+          .vector
+          .liftB
+
+        for {
+          i <- MonotonicSeq.Ops[Eff].next.liftB
+          handle = ResultHandle(i)
+          data <- loadedData
+          _ <- kvs.put(handle, SqlReadCursor(data)).liftB
+        } yield handle
+      })
     }
 
     override def more(h: ResultHandle): Backend[Vector[Data]] = {

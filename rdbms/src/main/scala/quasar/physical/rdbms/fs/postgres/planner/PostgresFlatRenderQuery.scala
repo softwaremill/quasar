@@ -17,18 +17,22 @@
 package quasar.physical.rdbms.fs.postgres.planner
 
 import slamdata.Predef._
+import quasar.{DataCodec, Data => QData}
 import quasar.physical.rdbms.planner.sql.{RenderQuery, SqlExpr}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
+import quasar.Planner.{NonRepresentableData, PlannerError}
+
 import matryoshka._
 import matryoshka.implicits._
-
 import scalaz._
 import Scalaz._
 
 object PostgresFlatRenderQuery extends RenderQuery {
   import SqlExpr._
 
-  def asString[T[_[_]]: BirecursiveT](a: T[SqlExpr]): String = {
+  implicit val codec: DataCodec = DataCodec.Precise
+
+  def asString[T[_[_]]: BirecursiveT](a: T[SqlExpr]): PlannerError \/ String = {
     val q = a.cataM(alg)
 
     a.project match {
@@ -37,21 +41,25 @@ object PostgresFlatRenderQuery extends RenderQuery {
     }
   }
 
-  val alg: AlgebraM[Scalaz.Id, SqlExpr, String] = {
+  val alg: AlgebraM[PlannerError \/ ?, SqlExpr, String] = {
+    case Data(QData.Str(v)) =>
+      ("'" ⊹ v.flatMap { case ''' => "''"; case iv => iv.toString } ⊹ "'").right
+    case Data(v) =>
+      DataCodec.render(v) \/> NonRepresentableData(v)
     case SqlExpr.Id(v) =>
-      s"'$v'"
-    case SqlExpr.Table(v) =>
-      v
+      s"'$v'".right
+    case Table(v) =>
+      v.right
     case AllCols() =>
-      "*"
-    case WithIds(str)    => str
-    case SomeCols(names) => names.mkString(",")
-    case RowIds()        => "row_number() over()"
+      "*".right
+    case WithIds(str)    => str.right
+    case SomeCols(names) => names.mkString(",").right
+    case RowIds()        => "row_number() over()".right
     case Select(selection, from, filterOpt) =>
       def alias(a: Option[SqlExpr.Id[String]]) = ~(a ∘ (i => s" as `${i.v}`"))
       val selectionStr = selection.v ⊹ alias(selection.alias)
       val filter = ~(filterOpt ∘ (f => s"where ${f.v}"))
       val fromExpr = s" from ${from.v}" ⊹ alias(from.alias)
-      s"(select $selectionStr from $fromExpr $filter)"
+      s"(select $selectionStr from $fromExpr $filter)".right
   }
 }

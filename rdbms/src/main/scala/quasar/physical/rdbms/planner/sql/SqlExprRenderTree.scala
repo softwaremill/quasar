@@ -38,6 +38,8 @@ trait SqlExprRenderTree {
         RenderTree.make {
           case Id(v) =>
             Terminal("Id" :: Nil, v.some)
+          case Data(v) =>
+            Terminal("Data" :: Nil, v.shows.some)
           case Table(v) =>
             Terminal("Table" :: Nil, v.some)
           case RowIds() =>

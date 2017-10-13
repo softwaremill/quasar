@@ -17,18 +17,24 @@
 package quasar.physical.rdbms.planner.sql
 
 import slamdata.Predef._
-import matryoshka._
-import quasar.NameGenerator
+import quasar.{Data => QData, NameGenerator, qscript}
 import quasar.Planner.{InternalError, PlannerErrorME}
 import quasar.physical.rdbms.planner.Planner
-import quasar.qscript.MapFuncCore
+import qscript.{MapFuncCore, MapFuncsCore => MF}
 
+
+import matryoshka._
+import matryoshka.implicits._
 import scalaz._
+import Scalaz._
+import SqlExpr._
 
 final class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]: Applicative: NameGenerator: PlannerErrorME]
   extends Planner[T, F, MapFuncCore[T, ?]] {
 
   def plan: AlgebraM[F, MapFuncCore[T, ?], T[SqlExpr]] = {
+    case MF.Constant(v) =>
+      Data[T[SqlExpr]](v.cata(QData.fromEJson)).embed.η[F]
     case other => PlannerErrorME[F].raiseError(InternalError.fromMsg(s"unsupported MapFuncCore: $other"))
   }
 }
