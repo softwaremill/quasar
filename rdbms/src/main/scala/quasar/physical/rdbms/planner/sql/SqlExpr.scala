@@ -24,25 +24,19 @@ object SqlExpr extends SqlExprInstances {
 
   import Select._
   final case class Id[T](v: String) extends SqlExpr[T]
-  final case class Select[T](fields: Fields[T],
+  final case class Select[T](selection: Selection[T],
                              from: From[T],
                              filter: Option[Filter[T]])
       extends SqlExpr[T]
   final case class From[T](v :T, alias: Option[Id[T]])
+  final case class Selection[T](v: T, alias: Option[Id[T]])
   final case class Table[T](name: String) extends SqlExpr[T]
 
   object Select {
     final case class Filter[T](v: T)
-
-    sealed abstract class Fields[T]
-    sealed trait ColumnFields[T] extends Fields[T]
-
-    final case class RowIds[T]() extends Fields[T]
-    final case class AllCols[T]() extends Fields[T] with ColumnFields[T]
-    final case class SomeCols[T](names: Vector[String])
-        extends Fields[T]
-        with ColumnFields[T]
-    final case class WithIds[T](fields: ColumnFields[T]) extends Fields[T]
-
+    final case class RowIds[T]() extends SqlExpr[T]
+    final case class AllCols[T]() extends SqlExpr[T]
+    final case class SomeCols[T](names: Vector[String]) extends SqlExpr[T]
+    final case class WithIds[T](v: T) extends SqlExpr[T]
   }
 }

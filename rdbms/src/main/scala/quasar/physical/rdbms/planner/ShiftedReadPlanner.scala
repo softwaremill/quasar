@@ -31,16 +31,18 @@ import Scalaz._
 
 class ShiftedReadPlanner[T[_[_]]: CorecursiveT, F[_]: Applicative] extends Planner[T, F, Const[ShiftedRead[AFile], ?]] {
 
-  def plan: AlgebraM[F, Const[ShiftedRead[AFile], ?], T[SqlExpr]] = {
+  type R = T[SqlExpr]
+
+  def plan: AlgebraM[F, Const[ShiftedRead[AFile], ?], R] = {
     case Const(semantics) =>
-      val from: From[T[SqlExpr]] = From(Table[T[SqlExpr]](TablePath.create(semantics.path).shows).embed, alias = None)
+      val from: From[R] = From(Table[R](TablePath.create(semantics.path).shows).embed, alias = None)
       val filter = None
-      val fields: Fields[T[SqlExpr]] = semantics.idStatus match {
-        case IdOnly => RowIds()
-        case ExcludeId => AllCols()
-        case IncludeId => WithIds(AllCols())
+      val fields: T[SqlExpr] = semantics.idStatus match {
+        case IdOnly => RowIds[R]().embed
+        case ExcludeId => AllCols[R]().embed
+        case IncludeId => WithIds[R](AllCols[R]().embed).embed
       }
-      Select(fields, from, filter).embed.point[F]
+      Select(Selection[R](fields, alias = none), from, filter).embed.point[F]
   }
 
 }

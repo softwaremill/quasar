@@ -33,17 +33,16 @@ trait SqlExprTraverse {
     ): G[SqlExpr[B]] = fa match {
       case Id(str)         => G.point(Id(str))
       case Table(name)        => G.point(Table(name))
-      case Select(fields, from, filterOpt) =>
-        val traversedFields: G[Fields[B]] = fields match {
-          case RowIds()        => G.point(RowIds())
-          case AllCols()       => G.point(AllCols())
-          case WithIds(AllCols()) => G.point(WithIds(AllCols()))
-          case WithIds(SomeCols(names)) => G.point(WithIds(SomeCols(names)))
-          case SomeCols(names) => G.point(SomeCols(names))
-        }
-        (traversedFields ⊛
+      case RowIds() => G.point(RowIds())
+      case AllCols() => G.point(AllCols())
+      case SomeCols(names) => G.point(SomeCols(names))
+      case WithIds(v) => f(v) ∘ WithIds.apply
+
+      case Select(selection, from, filterOpt) =>
+        val sel = f(selection.v) ∘ (i => Selection(i, selection.alias ∘ (a => Id[B](a.v))))
+        (sel ⊛
           (f(from.v) ∘ (From(_, from.alias ∘ (a => Id[B](a.v))))) ⊛
-          filterOpt.traverse(i => f(i.v).map(Filter(_))))(
+          filterOpt.traverse(i => f(i.v) ∘ Filter.apply))(
           Select(_, _, _)
         )
     }

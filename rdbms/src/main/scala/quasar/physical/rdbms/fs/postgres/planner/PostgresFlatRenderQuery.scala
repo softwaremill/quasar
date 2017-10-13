@@ -33,30 +33,25 @@ object PostgresFlatRenderQuery extends RenderQuery {
 
     a.project match {
       case s: Select[T[SqlExpr]] => q ∘ (s => s"select $s")
-      case _                  => q ∘ ("select " ⊹ _)
+      case _                     => q ∘ ("select " ⊹ _)
     }
   }
-
 
   val alg: AlgebraM[Scalaz.Id, SqlExpr, String] = {
     case SqlExpr.Id(v) =>
       s"'$v'"
     case SqlExpr.Table(v) =>
       v
-    case Select(fields, from, filterOpt) =>
+    case AllCols() =>
+      "*"
+    case WithIds(str)    => str
+    case SomeCols(names) => names.mkString(",")
+    case RowIds()        => "row_number() over()"
+    case Select(selection, from, filterOpt) =>
       def alias(a: Option[SqlExpr.Id[String]]) = ~(a ∘ (i => s" as `${i.v}`"))
-      val fieldsStr = fields match {
-        case AllCols() | WithIds(AllCols()) =>
-          "*"
-        case WithIds(SomeCols(names)) =>
-          names.mkString(",")
-        case SomeCols(names) =>
-          names.mkString(",")
-        case RowIds() =>
-          "1"
-      }
+      val selectionStr = selection.v ⊹ alias(selection.alias)
       val filter = ~(filterOpt ∘ (f => s"where ${f.v}"))
       val fromExpr = s" from ${from.v}" ⊹ alias(from.alias)
-      s"$fieldsStr from $fromExpr $filter"
+      s"(select $selectionStr from $fromExpr $filter)"
   }
 }

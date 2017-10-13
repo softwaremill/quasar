@@ -32,15 +32,6 @@ trait SqlExprRenderTree {
     new Delay[RenderTree, SqlExpr] {
       def apply[A](r: RenderTree[A]): RenderTree[SqlExpr[A]] = {
 
-        def renderFields(fields: Fields[A]): String =
-          fields match {
-            case AllCols()                => "*"
-            case RowIds()                 => "(row ids)"
-            case WithIds(AllCols())       => "(row ids, *)"
-            case WithIds(SomeCols(names)) => names.mkString(",")
-            case SomeCols(names)          => names.mkString(",")
-          }
-
         def nonTerminal(typ: String, c: A*): RenderedTree =
           NonTerminal(typ :: Nil, none, c.toList ∘ r.render)
 
@@ -49,14 +40,22 @@ trait SqlExprRenderTree {
             Terminal("Id" :: Nil, v.some)
           case Table(v) =>
             Terminal("Table" :: Nil, v.some)
-          case Select(fields, from, filter) =>
+          case RowIds() =>
+            Terminal("row ids" :: Nil, none)
+          case AllCols() =>
+            Terminal("*" :: Nil, none)
+          case SomeCols(names) =>
+            Terminal("Columns" :: Nil, names.mkString(",").some)
+          case WithIds(v) =>
+            nonTerminal("With ids", v)
+          case Select(selection, from, filter) =>
             def nt(tpe: String, label: Option[String], child: A) =
               NonTerminal(tpe :: Nil, label, List(r.render(child)))
 
             NonTerminal(
               "Select" :: Nil,
               none,
-              Terminal("fields" :: Nil, renderFields(fields).some) ::
+              nt("selection", selection.alias ∘ (_.v), selection.v) ::
                 nt("from", from.alias ∘ (_.v), from.v) ::
                 (filter ∘ (f => nt("filter", none, f.v))).toList
             )

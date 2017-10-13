@@ -20,18 +20,43 @@ import slamdata.Predef._
 import quasar.Planner.{InternalError, PlannerErrorME}
 import quasar.physical.rdbms.planner.Planner
 import quasar.{NameGenerator, qscript}
-import quasar.qscript.QScriptCore
-
+import quasar.qscript.{FreeMap, MapFunc, QScriptCore}
+import quasar.fp.ski._
+import quasar.qscript
+import qscript._
 import matryoshka._
-import scalaz.Monad
-import scalaz.syntax.applicative._
+import matryoshka.data._
+import matryoshka.implicits._
+import matryoshka.patterns._
+import quasar.physical.rdbms.planner.sql.SqlExpr._
+import quasar.physical.rdbms.planner.sql.SqlExpr.Select.AllCols
 
-class QScriptCorePlanner[T[_[_]]: CorecursiveT, F[_]: Monad: NameGenerator: PlannerErrorME] extends Planner[T, F, QScriptCore[T, ?]] {
+import scalaz._
+import Scalaz._
+
+class QScriptCorePlanner[T[_[_]]: CorecursiveT,
+F[_]: Monad: NameGenerator: PlannerErrorME](
+    mapFuncPlanner: Planner[T, F, MapFunc[T, ?]])
+    extends Planner[T, F, QScriptCore[T, ?]] {
+
+  def processFreeMap(f: FreeMap[T]): F[T[SqlExpr]] =
+    f.cataM(
+      interpretM(κ(AllCols[T[SqlExpr]]().embed.η[F]), mapFuncPlanner.plan))
 
   def plan: AlgebraM[F, QScriptCore[T, ?], T[SqlExpr]] = {
-    case qscript.Map(src, _) =>
-      src.point[F] // TODO
+    case qscript.Map(src, f) =>
+      for {
+        generatedAlias <- genId[T[SqlExpr], F]
+        selection <- processFreeMap(f)
+      } yield
+        Select(
+          Selection(selection, none),
+          From(src, generatedAlias.some),
+          filter = none
+        ).embed
+
     case _ =>
-      PlannerErrorME[F].raiseError(InternalError.fromMsg(s"unreachable QScriptCore"))
+      PlannerErrorME[F].raiseError(
+        InternalError.fromMsg(s"unreachable QScriptCore"))
   }
 }

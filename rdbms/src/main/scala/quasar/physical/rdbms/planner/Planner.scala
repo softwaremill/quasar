@@ -22,7 +22,7 @@ import quasar.Planner._
 import quasar.contrib.pathy.{ADir, AFile}
 import quasar.qscript._
 import quasar.NameGenerator
-import quasar.physical.rdbms.planner.sql.{QScriptCorePlanner, SqlExpr}
+import quasar.physical.rdbms.planner.sql.{MapFuncCorePlanner, MapFuncDerivedPlanner, QScriptCorePlanner, SqlExpr}
 import matryoshka._
 
 import scalaz._
@@ -63,11 +63,16 @@ object Planner {
   implicit def thetaJoinPlanner[T[_[_]]: RecursiveT: ShowT, F[_]: PlannerErrorME]
   : Planner[T, F, ThetaJoin[T, ?]] = unreachable("thetajoin")
 
+  def mapFuncPlanner[T[_[_]]: BirecursiveT: ShowT, F[_]: Applicative: Monad: NameGenerator: PlannerErrorME]
+  : Planner[T, F, MapFunc[T, ?]] = {
+    val core = new MapFuncCorePlanner[T, F]
+    coproduct(core, new MapFuncDerivedPlanner(core))
+  }
 
   implicit def qScriptCorePlanner[
   T[_[_]]: BirecursiveT: ShowT,
   F[_]: Monad: NameGenerator: PlannerErrorME]
-: Planner[T, F, QScriptCore[T, ?]] = new QScriptCorePlanner[T, F]
+: Planner[T, F, QScriptCore[T, ?]] = new QScriptCorePlanner[T, F](mapFuncPlanner)
 
   implicit def equiJoinPlanner[
   T[_[_]]: BirecursiveT: ShowT,

@@ -95,9 +95,14 @@ class PlannerSpec extends Qspec {
 
   import quasar.fp.free._
 
-  implicit def taskNameGenerator: NameGenerator[Task] =
+  implicit lazy val taskNameGenerator: NameGenerator[Task] =
     new NameGenerator[Task] {
-      def freshName = NameGenerator.salt
+      var counter = 0L
+      def freshName = {
+        val str = counter.toString
+        counter += 1
+        Task.delay(str)
+      }
     }
 
   def runTest[A, S[_]](f: Free[S, A])(implicit S: S :<: Task): A = {
@@ -144,7 +149,11 @@ class PlannerSpec extends Qspec {
 
     "build plan for column wildcard" in {
       plan(sqlE"select * from foo") must
-        beRepr(Select(AllCols(), From(Fix(Table("db.foo")), alias = None), filter = None))
+        beRepr({
+          val all = Selection[Fix[SqlExpr]](Fix(AllCols()), alias = None)
+          Select(all, From(Fix(Select(all, From(Fix(Table("db.foo")), alias = None), filter = None)),
+            alias = Id("_0").some), filter = None)
+        })
     }
 
     def expectShiftedReadRepr(forIdStatus: IdStatus, expectedRepr: SqlExpr[Fix[SqlExpr]]) = {
@@ -160,17 +169,26 @@ class PlannerSpec extends Qspec {
 
     "build plan including ids" in {
       expectShiftedReadRepr(forIdStatus = IncludeId,
-        expectedRepr = Select(WithIds(AllCols()), From(Fix(Table("db.foo")), alias = None), filter = None))
+        expectedRepr = {
+          val allWithIds = Selection[Fix[SqlExpr]](Fix(WithIds(Fix(AllCols()))), alias = None)
+          Select(allWithIds, From(Fix(Table("db.foo")), alias = None), filter = None)
+        })
     }
 
     "build plan only for ids" in {
       expectShiftedReadRepr(forIdStatus = IdOnly,
-        expectedRepr = Select(RowIds(), From(Fix(Table("db.foo")), alias = None), filter = None))
+        expectedRepr = {
+          val rowIds = Selection[Fix[SqlExpr]](Fix(RowIds()), alias = None)
+          Select(rowIds, From(Fix(Table("db.foo")), alias = None), filter = None)
+        })
     }
 
     "build plan only for excluded ids" in {
       expectShiftedReadRepr(forIdStatus = ExcludeId,
-        expectedRepr = Select(AllCols(), From(Fix(Table("db.foo")), alias = None), filter = None))
+        expectedRepr = {
+          val all = Selection[Fix[SqlExpr]](Fix(AllCols()), alias = None)
+          Select(all, From(Fix(Table("db.foo")), alias = None), filter = None)
+        })
     }
   }
 }
