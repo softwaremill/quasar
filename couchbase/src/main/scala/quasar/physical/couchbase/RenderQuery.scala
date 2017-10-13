@@ -205,7 +205,7 @@ object RenderQuery {
       val resultExprs = (re ∘ (r => r.expr ⊹ alias(r.alias))).intercalate(", ")
       val kSpace      = ~(ks ∘ (k => s" from ${k.expr}" ⊹ alias(k.alias)))
       val join        = ~(jn ∘ (j =>
-                          j.joinType.fold(κ(""), κ(" left outer")) ⊹ s" join `${j.id.v}`" ⊹ alias(j.alias) ⊹
+                            j.joinType.fold(κ(""), κ(" left outer")) ⊹ s" join `${j.id.v}`" ⊹ alias(j.alias) ⊹
                           " on keys " ⊹ j.pred))
       val unnest      = ~(un ∘ (u => s" unnest ${u.expr}" ⊹ alias(u.alias)))
       val let         = lt.toNel.foldMap(

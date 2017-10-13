@@ -25,10 +25,11 @@ object SqlExpr extends SqlExprInstances {
   import Select._
   final case class Id[T](v: String) extends SqlExpr[T]
   final case class Select[T](fields: Fields[T],
-                             table: Table[T],
+                             from: From[T],
                              filter: Option[Filter[T]])
       extends SqlExpr[T]
-  final case class Table[T](expr: T) extends SqlExpr[T]
+  final case class From[T](v :T, alias: Option[Id[T]])
+  final case class Table[T](name: String) extends SqlExpr[T]
 
   object Select {
     final case class Filter[T](v: T)

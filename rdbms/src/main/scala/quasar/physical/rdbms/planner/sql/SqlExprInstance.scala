@@ -32,8 +32,8 @@ trait SqlExprTraverse {
         implicit G: Applicative[G]
     ): G[SqlExpr[B]] = fa match {
       case Id(str)         => G.point(Id(str))
-      case Table(v)        => f(v).map(Table(_))
-      case Select(fields, table, filterOpt) =>
+      case Table(name)        => G.point(Table(name))
+      case Select(fields, from, filterOpt) =>
         val traversedFields: G[Fields[B]] = fields match {
           case RowIds()        => G.point(RowIds())
           case AllCols()       => G.point(AllCols())
@@ -41,7 +41,9 @@ trait SqlExprTraverse {
           case WithIds(SomeCols(names)) => G.point(WithIds(SomeCols(names)))
           case SomeCols(names) => G.point(SomeCols(names))
         }
-        (traversedFields ⊛ f(table.expr).map(Table(_)) ⊛ filterOpt.traverse(i => f(i.v).map(Filter(_))))(
+        (traversedFields ⊛
+          (f(from.v) ∘ (From(_, from.alias ∘ (a => Id[B](a.v))))) ⊛
+          filterOpt.traverse(i => f(i.v).map(Filter(_))))(
           Select(_, _, _)
         )
     }

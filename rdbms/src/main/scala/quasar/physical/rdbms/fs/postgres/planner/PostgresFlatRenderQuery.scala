@@ -43,7 +43,8 @@ object PostgresFlatRenderQuery extends RenderQuery {
       s"'$v'"
     case SqlExpr.Table(v) =>
       v
-    case Select(fields, table, filterOpt) =>
+    case Select(fields, from, filterOpt) =>
+      def alias(a: Option[SqlExpr.Id[String]]) = ~(a ∘ (i => s" as `${i.v}`"))
       val fieldsStr = fields match {
         case AllCols() | WithIds(AllCols()) =>
           "*"
@@ -55,6 +56,7 @@ object PostgresFlatRenderQuery extends RenderQuery {
           "1"
       }
       val filter = ~(filterOpt ∘ (f => s"where ${f.v}"))
-      s"$fieldsStr from ${table.expr} $filter"
+      val fromExpr = s" from ${from.v}" ⊹ alias(from.alias)
+      s"$fieldsStr from $fromExpr $filter"
   }
 }

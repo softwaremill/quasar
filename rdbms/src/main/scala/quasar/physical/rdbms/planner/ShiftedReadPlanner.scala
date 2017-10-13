@@ -31,18 +31,16 @@ import Scalaz._
 
 class ShiftedReadPlanner[T[_[_]]: CorecursiveT, F[_]: Applicative] extends Planner[T, F, Const[ShiftedRead[AFile], ?]] {
 
-  def id(v: String): SqlExpr.Id[T[SqlExpr]] = quasar.physical.rdbms.planner.sql.SqlExpr.Id[T[SqlExpr]](v)
-
   def plan: AlgebraM[F, Const[ShiftedRead[AFile], ?], T[SqlExpr]] = {
     case Const(semantics) =>
-      val table = Table(id(TablePath.create(semantics.path).shows).embed)
+      val from: From[T[SqlExpr]] = From(Table[T[SqlExpr]](TablePath.create(semantics.path).shows).embed, alias = None)
       val filter = None
       val fields: Fields[T[SqlExpr]] = semantics.idStatus match {
         case IdOnly => RowIds()
         case ExcludeId => AllCols()
         case IncludeId => WithIds(AllCols())
       }
-      Select(fields, table, filter).embed.point[F]
+      Select(fields, from, filter).embed.point[F]
   }
 
 }

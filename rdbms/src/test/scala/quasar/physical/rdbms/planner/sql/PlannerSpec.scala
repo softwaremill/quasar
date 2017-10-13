@@ -136,8 +136,6 @@ class PlannerSpec extends Qspec {
   def beRepr(expected: SqlExpr[Fix[SqlExpr]]) =
     equalToRepr[FileSystemError](Fix(expected))
 
-  def id(v: String) = Fix(SqlExpr.Id[Fix[SqlExpr]](v))
-
   import SqlExpr._
   import SqlExpr.Select._
 
@@ -146,7 +144,7 @@ class PlannerSpec extends Qspec {
 
     "build plan for column wildcard" in {
       plan(sqlE"select * from foo") must
-        beRepr(Select(AllCols(), Table(id("db.foo")), filter = None))
+        beRepr(Select(AllCols(), From(Fix(Table("db.foo")), alias = None), filter = None))
     }
 
     def expectShiftedReadRepr(forIdStatus: IdStatus, expectedRepr: SqlExpr[Fix[SqlExpr]]) = {
@@ -162,17 +160,17 @@ class PlannerSpec extends Qspec {
 
     "build plan including ids" in {
       expectShiftedReadRepr(forIdStatus = IncludeId,
-        expectedRepr = Select(WithIds(AllCols()), Table(id("db.foo")), filter = None))
+        expectedRepr = Select(WithIds(AllCols()), From(Fix(Table("db.foo")), alias = None), filter = None))
     }
 
     "build plan only for ids" in {
       expectShiftedReadRepr(forIdStatus = IdOnly,
-        expectedRepr = Select(RowIds(), Table(id("db.foo")), filter = None))
+        expectedRepr = Select(RowIds(), From(Fix(Table("db.foo")), alias = None), filter = None))
     }
 
     "build plan only for excluded ids" in {
       expectShiftedReadRepr(forIdStatus = ExcludeId,
-        expectedRepr = Select(AllCols(), Table(id("db.foo")), filter = None))
+        expectedRepr = Select(AllCols(), From(Fix(Table("db.foo")), alias = None), filter = None))
     }
   }
 }

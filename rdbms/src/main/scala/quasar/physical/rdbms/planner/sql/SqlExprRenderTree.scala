@@ -32,7 +32,7 @@ trait SqlExprRenderTree {
     new Delay[RenderTree, SqlExpr] {
       def apply[A](r: RenderTree[A]): RenderTree[SqlExpr[A]] = {
 
-        def renderFields[A](fields: Fields[A]): String =
+        def renderFields(fields: Fields[A]): String =
           fields match {
             case AllCols()                => "*"
             case RowIds()                 => "(row ids)"
@@ -42,14 +42,14 @@ trait SqlExprRenderTree {
           }
 
         def nonTerminal(typ: String, c: A*): RenderedTree =
-          NonTerminal(typ :: Nil, none, c.toList.map(r.render))
+          NonTerminal(typ :: Nil, none, c.toList ∘ r.render)
 
         RenderTree.make {
           case Id(v) =>
             Terminal("Id" :: Nil, v.some)
           case Table(v) =>
-            nonTerminal("Table", v)
-          case Select(fields, table, filter) =>
+            Terminal("Table" :: Nil, v.some)
+          case Select(fields, from, filter) =>
             def nt(tpe: String, label: Option[String], child: A) =
               NonTerminal(tpe :: Nil, label, List(r.render(child)))
 
@@ -57,7 +57,7 @@ trait SqlExprRenderTree {
               "Select" :: Nil,
               none,
               Terminal("fields" :: Nil, renderFields(fields).some) ::
-                nt("table", none, table.expr) ::
+                nt("from", from.alias ∘ (_.v), from.v) ::
                 (filter ∘ (f => nt("filter", none, f.v))).toList
             )
         }
