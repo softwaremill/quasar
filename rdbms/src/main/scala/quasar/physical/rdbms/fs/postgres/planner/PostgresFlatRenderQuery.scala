@@ -36,20 +36,23 @@ object PostgresFlatRenderQuery extends RenderQuery {
     val q = a.cataM(alg)
 
     a.project match {
-      case s: Select[T[SqlExpr]] => q ∘ (s => s"select $s")
-      case _                     => q ∘ ("select " ⊹ _)
+      case s: Select[T[SqlExpr]] => q ∘ (s => s"$s")
+      case _                     => q ∘ ("" ⊹ _)
     }
   }
 
   val alg: AlgebraM[PlannerError \/ ?, SqlExpr, String] = {
     case Data(QData.Str(v)) =>
-      ("'" ⊹ v.flatMap { case ''' => "''"; case iv => iv.toString } ⊹ "'").right
+      v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right
     case Data(v) =>
       DataCodec.render(v) \/> NonRepresentableData(v)
     case Null() =>
       s"null".right
+    case Length(v) =>
+      (s"(case when pg_typeof($v) in (1005, 1007, 1009, 1028, 1021, 1263, 2211, 2287, 2277, 2276) " +
+        s"then cardinality($v::text[]) when pg_typeof($v) in (1043, 25) then length($v::text) else 0 end)").right
     case SqlExpr.Id(v) =>
-      s"'$v'".right
+      s"$v".right
     case Table(v) =>
       v.right
     case AllCols() =>
@@ -58,10 +61,10 @@ object PostgresFlatRenderQuery extends RenderQuery {
     case SomeCols(names) => names.mkString(",").right
     case RowIds()        => "row_number() over()".right
     case Select(selection, from, filterOpt) =>
-      def alias(a: Option[SqlExpr.Id[String]]) = ~(a ∘ (i => s" as `${i.v}`"))
+      def alias(a: Option[SqlExpr.Id[String]]) = ~(a ∘ (i => s" as ${i.v}"))
       val selectionStr = selection.v ⊹ alias(selection.alias)
       val filter = ~(filterOpt ∘ (f => s"where ${f.v}"))
       val fromExpr = s" from ${from.v}" ⊹ alias(from.alias)
-      s"(select $selectionStr from $fromExpr $filter)".right
+      s"(select $selectionStr$fromExpr $filter)".right
   }
 }

@@ -33,7 +33,6 @@ final class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]: Applicative: 
   extends Planner[T, F, MapFuncCore[T, ?]] {
 
   val undefined: T[SqlExpr] = Null[T[SqlExpr]]().embed
-
   def plan: AlgebraM[F, MapFuncCore[T, ?], T[SqlExpr]] = {
     case MF.Constant(v) =>
       Data[T[SqlExpr]](v.cata(QData.fromEJson)).embed.η[F]
@@ -41,7 +40,12 @@ final class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]: Applicative: 
       undefined.η[F]
     case MF.JoinSideName(n) =>
       unexpected(s"JoinSideName(${n.shows})")
-
+    case MF.Length(expr) =>
+      Length[T[SqlExpr]](expr).embed.η[F]
+    case MF.Guard(_, _, expr, _) =>
+      expr.η[F]
+    case MF.ProjectField(_, b) =>
+      b.η[F] // TODO
     case other => PlannerErrorME[F].raiseError(InternalError.fromMsg(s"unsupported MapFuncCore: $other"))
   }
 }

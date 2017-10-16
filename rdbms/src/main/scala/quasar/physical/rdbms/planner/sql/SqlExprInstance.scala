@@ -34,6 +34,7 @@ trait SqlExprTraverse {
       case Id(str)            => G.point(Id(str))
       case Data(v)            => G.point(Data(v))
       case Null()             => G.point(Null())
+      case Length(v)          => f(v) ∘ Length.apply
       case Table(name)        => G.point(Table(name))
       case RowIds()           => G.point(RowIds())
       case AllCols()          => G.point(AllCols())

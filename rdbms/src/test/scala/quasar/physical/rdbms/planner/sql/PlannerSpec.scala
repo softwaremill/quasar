@@ -18,6 +18,7 @@ package quasar.physical.rdbms.planner.sql
 
 import slamdata.Predef._
 import quasar._
+import quasar.{Data => QData}
 import quasar.common.{PhaseResult, PhaseResultT, PhaseResultTell, PhaseResults}
 import quasar.contrib.pathy._
 import quasar.contrib.scalaz.MonadError_
@@ -31,7 +32,6 @@ import quasar.physical.rdbms.planner.Planner
 import quasar.Planner.PlannerError
 import quasar.qscript._
 import quasar.sql._
-
 import eu.timepit.refined.auto._
 import matryoshka._
 import matryoshka.data._
@@ -40,6 +40,8 @@ import org.specs2.execute.NoDetails
 import org.specs2.matcher._
 import pathy.Path
 import pathy.Path._
+import quasar.physical.rdbms.fs.postgres.planner.PostgresFlatRenderQuery
+
 import scalaz._
 import Scalaz._
 import scalaz.concurrent.Task
@@ -95,7 +97,7 @@ class PlannerSpec extends Qspec {
 
   import quasar.fp.free._
 
-  implicit lazy val taskNameGenerator: NameGenerator[Task] =
+  implicit def taskNameGenerator: NameGenerator[Task] =
     new NameGenerator[Task] {
       var counter = 0L
       def freshName = {
@@ -144,22 +146,48 @@ class PlannerSpec extends Qspec {
   import SqlExpr._
   import SqlExpr.Select._
 
+  def data(v: String): Fix[SqlExpr] =
+    Fix(Data[Fix[SqlExpr]](QData.Str(v)))
+
+  def length(v: Fix[SqlExpr]): Fix[SqlExpr] =
+    Fix(Length[Fix[SqlExpr]](v))
+
+  def selection(
+      v: Fix[SqlExpr],
+      alias: Option[SqlExpr.Id[Fix[SqlExpr]]] = None): Selection[Fix[SqlExpr]] =
+    Selection[Fix[SqlExpr]](v, alias)
+
+  def * : Fix[SqlExpr] = Fix(AllCols())
+
+  def fromTable(
+      name: String,
+      alias: Option[SqlExpr.Id[Fix[SqlExpr]]] = None): From[Fix[SqlExpr]] =
+    From[Fix[SqlExpr]](Fix(Table(name)), alias)
+
+  def select[T](selection: Selection[T],
+                from: From[T],
+                filter: Option[Filter[T]] = None) =
+    Select(selection, from, filter)
+
   "Shifted read" should {
     type SR[A] = Const[ShiftedRead[AFile], A]
 
     "build plan for column wildcard" in {
       plan(sqlE"select * from foo") must
         beRepr({
-          val all = Selection[Fix[SqlExpr]](Fix(AllCols()), alias = None)
-          Select(all, From(Fix(Select(all, From(Fix(Table("db.foo")), alias = None), filter = None)),
-            alias = Id("_0").some), filter = None)
+          select(
+            selection(*),
+            From(Fix(Select(selection(*), fromTable("db.foo"), filter = None)),
+                 alias = Id("_0").some))
         })
     }
 
-    def expectShiftedReadRepr(forIdStatus: IdStatus, expectedRepr: SqlExpr[Fix[SqlExpr]]) = {
+    def expectShiftedReadRepr(forIdStatus: IdStatus,
+                              expectedRepr: SqlExpr[Fix[SqlExpr]]) = {
       val path: AFile = rootDir </> dir("db") </> file("foo")
 
-      val qs: Fix[SR] = Fix(Inject[SR, SR].inj(Const(ShiftedRead(path, forIdStatus))))
+      val qs: Fix[SR] =
+        Fix(Inject[SR, SR].inj(Const(ShiftedRead(path, forIdStatus))))
       val planner = Planner.constShiftedReadFilePlanner[Fix, Task]
       val repr = qs.cataM(planner.plan).map(_.convertTo[Repr]).unsafePerformSync
 
@@ -168,26 +196,32 @@ class PlannerSpec extends Qspec {
     }
 
     "build plan including ids" in {
-      expectShiftedReadRepr(forIdStatus = IncludeId,
-        expectedRepr = {
-          val allWithIds = Selection[Fix[SqlExpr]](Fix(WithIds(Fix(AllCols()))), alias = None)
-          Select(allWithIds, From(Fix(Table("db.foo")), alias = None), filter = None)
-        })
+      expectShiftedReadRepr(forIdStatus = IncludeId, expectedRepr = {
+        select(selection(Fix(WithIds(*))), fromTable("db.foo"))
+      })
     }
 
     "build plan only for ids" in {
-      expectShiftedReadRepr(forIdStatus = IdOnly,
-        expectedRepr = {
-          val rowIds = Selection[Fix[SqlExpr]](Fix(RowIds()), alias = None)
-          Select(rowIds, From(Fix(Table("db.foo")), alias = None), filter = None)
-        })
+      expectShiftedReadRepr(forIdStatus = IdOnly, expectedRepr = {
+        select(selection(Fix(RowIds())), fromTable("db.foo"))
+      })
     }
 
     "build plan only for excluded ids" in {
-      expectShiftedReadRepr(forIdStatus = ExcludeId,
-        expectedRepr = {
-          val all = Selection[Fix[SqlExpr]](Fix(AllCols()), alias = None)
-          Select(all, From(Fix(Table("db.foo")), alias = None), filter = None)
+      expectShiftedReadRepr(forIdStatus = ExcludeId, expectedRepr = {
+        select(selection(*), fromTable("db.foo"))
+      })
+    }
+  }
+
+  "MapFuncCore" should {
+
+    "build length()" in {
+      plan(sqlE"select length(name) from foo") must
+        beRepr({
+          select(selection(length(data("name"))),
+                 From(Fix(select(selection(*), fromTable("db.foo"))),
+                      alias = Id("_0").some))
         })
     }
   }

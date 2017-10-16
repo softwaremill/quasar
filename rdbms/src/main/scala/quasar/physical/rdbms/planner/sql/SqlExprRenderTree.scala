@@ -42,6 +42,8 @@ trait SqlExprRenderTree {
             Terminal("Null" :: Nil, none)
           case Data(v) =>
             Terminal("Data" :: Nil, v.shows.some)
+          case Length(v) =>
+            nonTerminal("Length", v)
           case Table(v) =>
             Terminal("Table" :: Nil, v.some)
           case RowIds() =>
