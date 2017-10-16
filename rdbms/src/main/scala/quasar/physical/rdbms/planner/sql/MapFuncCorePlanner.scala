@@ -17,6 +17,7 @@
 package quasar.physical.rdbms.planner.sql
 
 import slamdata.Predef._
+import quasar.fp._
 import quasar.{NameGenerator, qscript, Data => QData}
 import quasar.Planner.{InternalError, PlannerErrorME}
 import quasar.physical.rdbms.planner.Planner
@@ -38,6 +39,9 @@ final class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]: Applicative: 
       Data[T[SqlExpr]](v.cata(QData.fromEJson)).embed.η[F]
     case MF.Undefined() =>
       undefined.η[F]
+    case MF.JoinSideName(n) =>
+      unexpected(s"JoinSideName(${n.shows})")
+
     case other => PlannerErrorME[F].raiseError(InternalError.fromMsg(s"unsupported MapFuncCore: $other"))
   }
 }

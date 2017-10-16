@@ -16,8 +16,10 @@
 
 package quasar.physical.rdbms.planner
 
+import slamdata.Predef._
 import quasar.NameGenerator
 import quasar.physical.rdbms.planner.sql.SqlExpr.Id
+import quasar.Planner.{InternalError, PlannerErrorME}
 
 import scalaz.Functor
 import scalaz.syntax.functor._
@@ -25,4 +27,7 @@ import scalaz.syntax.functor._
 package object sql {
   def genId[T, F[_]: Functor: NameGenerator]: F[Id[T]] =
     NameGenerator[F].prefixedName("_") ∘ (Id(_))
+
+  def unexpected[F[_]: PlannerErrorME, A](name: String): F[A] =
+    PlannerErrorME[F].raiseError(InternalError.fromMsg(s"unexpected $name"))
 }
