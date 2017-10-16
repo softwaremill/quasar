@@ -30,4 +30,8 @@ package object sql {
 
   def unexpected[F[_]: PlannerErrorME, A](name: String): F[A] =
     PlannerErrorME[F].raiseError(InternalError.fromMsg(s"unexpected $name"))
+
+  def unsupported[F[_]: PlannerErrorME, A](name: String): F[A] =
+    PlannerErrorME[F].raiseError(InternalError.fromMsg(s"Unsupported $name"))
+
 }

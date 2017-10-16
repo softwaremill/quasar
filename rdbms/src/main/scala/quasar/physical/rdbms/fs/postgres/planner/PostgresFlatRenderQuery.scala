@@ -52,7 +52,11 @@ object PostgresFlatRenderQuery extends RenderQuery {
       (s"(case when pg_typeof($v) in (1005, 1007, 1009, 1028, 1021, 1263, 2211, 2287, 2277, 2276) " +
         s"then cardinality($v::text[]) when pg_typeof($v) in (1043, 25) then length($v::text) else 0 end)").right
     case SqlExpr.Id(v) =>
-      s"$v".right
+      s"""$v""".right
+    case ExprWithAlias(expr, alias) =>
+      (if (expr === alias.v) s"$expr" else s"""$expr as "${alias.v}"""").right
+    case ExprPair(expr1, expr2) =>
+      s"$expr1, $expr2".right
     case Table(v) =>
       v.right
     case AllCols() =>

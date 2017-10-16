@@ -32,6 +32,7 @@ import quasar.physical.rdbms.planner.Planner
 import quasar.Planner.PlannerError
 import quasar.qscript._
 import quasar.sql._
+
 import eu.timepit.refined.auto._
 import matryoshka._
 import matryoshka.data._
@@ -40,8 +41,6 @@ import org.specs2.execute.NoDetails
 import org.specs2.matcher._
 import pathy.Path
 import pathy.Path._
-import quasar.physical.rdbms.fs.postgres.planner.PostgresFlatRenderQuery
-
 import scalaz._
 import Scalaz._
 import scalaz.concurrent.Task
@@ -159,6 +158,12 @@ class PlannerSpec extends Qspec {
 
   def * : Fix[SqlExpr] = Fix(AllCols())
 
+  def exprs(e1: Fix[SqlExpr], e2: Fix[SqlExpr]): Fix[SqlExpr] = Fix(ExprPair[Fix[SqlExpr]](e1, e2))
+
+  def alias(e: Fix[SqlExpr], a: String): Fix[SqlExpr] = Fix(ExprWithAlias[Fix[SqlExpr]](e, Id[Fix[SqlExpr]](a)))
+
+  def alias(a: String): Fix[SqlExpr] = alias(data(a), a)
+
   def fromTable(
       name: String,
       alias: Option[SqlExpr.Id[Fix[SqlExpr]]] = None): From[Fix[SqlExpr]] =
@@ -222,6 +227,31 @@ class PlannerSpec extends Qspec {
           select(selection(length(data("name"))),
                  From(Fix(select(selection(*), fromTable("db.foo"))),
                       alias = Id("_0").some))
+        })
+    }
+
+    "build projection for a single field" in {
+      plan(sqlE"select name from foo") must
+        beRepr({
+          select(selection(data("name")),
+            From(Fix(select(selection(*), fromTable("db.foo"))),
+              alias = Id("_0").some))
+        })
+    }
+
+    "build projection for multiple fields" in {
+      plan(sqlE"select name, surname, street from foo") must
+        beRepr({
+          select(selection(exprs(exprs(alias("name"), alias("surname")), alias("street"))),
+            From(Fix(select(selection(*), fromTable("db.foo"))), alias = Id("_0").some))
+        })
+    }
+
+    "build length with additional fields and an alias" in {
+      plan(sqlE"select name, length(surname) as len from foo") must
+        beRepr({
+          select(selection(exprs(alias("name"), alias(length(data("surname")), "len"))),
+            From(Fix(select(selection(*), fromTable("db.foo"))), alias = Id("_0").some))
         })
     }
   }

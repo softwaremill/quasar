@@ -31,15 +31,17 @@ trait SqlExprTraverse {
     )(
         implicit G: Applicative[G]
     ): G[SqlExpr[B]] = fa match {
-      case Id(str)            => G.point(Id(str))
-      case Data(v)            => G.point(Data(v))
-      case Null()             => G.point(Null())
-      case Length(v)          => f(v) ∘ Length.apply
-      case Table(name)        => G.point(Table(name))
-      case RowIds()           => G.point(RowIds())
-      case AllCols()          => G.point(AllCols())
-      case SomeCols(names)    => G.point(SomeCols(names))
-      case WithIds(v)         => f(v) ∘ WithIds.apply
+      case Id(str)             => G.point(Id(str))
+      case Data(v)             => G.point(Data(v))
+      case Null()              => G.point(Null())
+      case Length(v)           => f(v) ∘ Length.apply
+      case ExprPair(e1, e2)    => (f(e1) ⊛ f(e2))(ExprPair.apply)
+      case ExprWithAlias(e, a) => f(e) ∘ (ExprWithAlias(_, Id[B](a.v)))
+      case Table(name)         => G.point(Table(name))
+      case RowIds()            => G.point(RowIds())
+      case AllCols()           => G.point(AllCols())
+      case SomeCols(names)     => G.point(SomeCols(names))
+      case WithIds(v)          => f(v) ∘ WithIds.apply
 
       case Select(selection, from, filterOpt) =>
         val sel = f(selection.v) ∘ (i => Selection(i, selection.alias ∘ (a => Id[B](a.v))))

@@ -52,6 +52,10 @@ trait SqlExprRenderTree {
             Terminal("*" :: Nil, none)
           case SomeCols(names) =>
             Terminal("Columns" :: Nil, names.mkString(",").some)
+          case ExprWithAlias(expr, alias) =>
+            NonTerminal("Expr with alias" :: Nil, alias.v.some, List(r.render(expr)))
+          case ExprPair(expr1, expr2) =>
+            NonTerminal("Pair" :: Nil, none, List(expr1, expr2) ∘ r.render)
           case WithIds(v) =>
             nonTerminal("With ids", v)
           case Select(selection, from, filter) =>
