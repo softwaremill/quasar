@@ -46,6 +46,8 @@ object PostgresFlatRenderQuery extends RenderQuery {
       ("'" ⊹ v.flatMap { case ''' => "''"; case iv => iv.toString } ⊹ "'").right
     case Data(v) =>
       DataCodec.render(v) \/> NonRepresentableData(v)
+    case Null() =>
+      s"null".right
     case SqlExpr.Id(v) =>
       s"'$v'".right
     case Table(v) =>

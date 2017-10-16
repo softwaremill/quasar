@@ -25,7 +25,9 @@ object SqlExpr extends SqlExprInstances {
 
   import Select._
   final case class Id[T](v: String) extends SqlExpr[T]
-  final case class Data[A](v: QData) extends SqlExpr[A]
+  final case class Data[T](v: QData) extends SqlExpr[T]
+  final case class Null[T]() extends SqlExpr[T]
+
   final case class Select[T](selection: Selection[T],
                              from: From[T],
                              filter: Option[Filter[T]])
