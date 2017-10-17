@@ -50,6 +50,10 @@ final class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]: Applicative: 
       case FieldRef(elems) => FieldRef[T[SqlExpr]](elems :+ b).embed.η[F]
       case _ => FieldRef[T[SqlExpr]](Vector(b)).embed.η[F]
     }
+    case MF.ProjectIndex(a, b) => a.project match {
+      case FieldRef(elems) => FieldRef[T[SqlExpr]](elems :+ b).embed.η[F]
+      case _ => FieldRef[T[SqlExpr]](Vector(b)).embed.η[F]
+    }
     case MF.MakeMap(key, value) =>
       key.project match {
         case Data(QData.Str(keyStr)) =>
