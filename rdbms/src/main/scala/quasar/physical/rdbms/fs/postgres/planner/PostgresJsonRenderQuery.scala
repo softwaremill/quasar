@@ -20,7 +20,7 @@ import matryoshka._
 import quasar.Planner.{NonRepresentableData, PlannerError}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import quasar.physical.rdbms.planner.sql.{RenderQuery, SqlExpr}
-import quasar.{DataCodec, Data => QData}
+import quasar.DataCodec
 import matryoshka.implicits._
 import slamdata.Predef._
 
@@ -42,8 +42,9 @@ object PostgresJsonRenderQuery extends RenderQuery {
   }
 
   val alg: AlgebraM[PlannerError \/ ?, SqlExpr, String] = {
-    case Data(QData.Str(v)) =>
-      v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right.map(str => s"data::json#>'{$str}'")
+    case FieldRef(rs) =>
+      rs.map(_.flatMap { case ''' => "''"; case iv => iv.toString }).self
+        .right.map(crs => s"""data::json#>'{${crs.mkString(",")}}'""")
     case Data(v) =>
       DataCodec.render(v) \/> NonRepresentableData(v)
     case Null() =>

@@ -33,6 +33,7 @@ trait SqlExprTraverse {
     ): G[SqlExpr[B]] = fa match {
       case Id(str)             => G.point(Id(str))
       case Data(v)             => G.point(Data(v))
+      case FieldRef(rs)        => rs.traverse(f) ∘ FieldRef.apply
       case Null()              => G.point(Null())
       case Length(v)           => f(v) ∘ Length.apply
       case ExprPair(e1, e2)    => (f(e1) ⊛ f(e2))(ExprPair.apply)

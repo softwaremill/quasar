@@ -22,9 +22,9 @@ import quasar.{NameGenerator, qscript, Data => QData}
 import quasar.Planner.{InternalError, PlannerErrorME}
 import quasar.physical.rdbms.planner.Planner
 import qscript.{MapFuncCore, MapFuncsCore => MF}
-
 import matryoshka._
 import matryoshka.implicits._
+
 import scalaz._
 import Scalaz._
 import SqlExpr._
@@ -46,8 +46,10 @@ final class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]: Applicative: 
       Length[T[SqlExpr]](expr).embed.η[F]
     case MF.Guard(_, _, expr, _) =>
       expr.η[F]
-    case MF.ProjectField(_, b) =>
-      b.η[F]
+    case MF.ProjectField(a, b) => a.project match {
+      case FieldRef(elems) => FieldRef[T[SqlExpr]](elems :+ b).embed.η[F]
+      case _ => FieldRef[T[SqlExpr]](Vector(b)).embed.η[F]
+    }
     case MF.MakeMap(key, value) =>
       key.project match {
         case Data(QData.Str(keyStr)) =>

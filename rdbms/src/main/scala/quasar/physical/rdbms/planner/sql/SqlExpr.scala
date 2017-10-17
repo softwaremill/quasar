@@ -37,6 +37,7 @@ object SqlExpr extends SqlExprInstances {
   final case class Selection[T](v: T, alias: Option[Id[T]])
   final case class Table[T](name: String) extends SqlExpr[T]
   final case class ExprWithAlias[T](expr: T, alias: Id[T]) extends SqlExpr[T]
+  final case class FieldRef[T](es: Vector[T]) extends SqlExpr[T]
   final case class ExprPair[T](a: T, b: T) extends SqlExpr[T]
 
   object Select {

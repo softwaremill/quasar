@@ -42,6 +42,8 @@ trait SqlExprRenderTree {
             Terminal("Null" :: Nil, none)
           case Data(v) =>
             Terminal("Data" :: Nil, v.shows.some)
+          case FieldRef(rs) =>
+            Terminal("FieldRef":: Nil, rs.map(r.render).mkString(".").some)
           case Length(v) =>
             nonTerminal("Length", v)
           case Table(v) =>
