@@ -19,17 +19,13 @@ package quasar.physical.rdbms.planner.sql
 import slamdata.Predef._
 import quasar._
 import quasar.{Data => QData}
-import quasar.common.{PhaseResult, PhaseResultT, PhaseResultTell, PhaseResults}
 import quasar.contrib.pathy._
-import quasar.contrib.scalaz.MonadError_
-import quasar.fp.ski.ι
-import quasar.frontend.logicalplan.LogicalPlan
-import quasar.fs.{FileSystemError, MonadFsErr}
-import quasar.{NameGenerator, Qspec, Variables}
+import quasar.fs.FileSystemError
+import quasar.Qspec
 import quasar.physical.rdbms.fs.postgres.Postgres
+import quasar.physical.rdbms.fs.postgres.planner.PostgresJsonRenderQuery
 import quasar.physical.rdbms.model.Repr
 import quasar.physical.rdbms.planner.Planner
-import quasar.Planner.PlannerError
 import quasar.qscript._
 import quasar.sql._
 
@@ -39,76 +35,12 @@ import matryoshka.data._
 import matryoshka.implicits._
 import org.specs2.execute.NoDetails
 import org.specs2.matcher._
-import pathy.Path
 import pathy.Path._
 import scalaz._
 import Scalaz._
 import scalaz.concurrent.Task
 
-class PlannerSpec extends Qspec {
-
-  type LP[A] = LogicalPlan[A]
-  type QS[T[_[_]]] = quasar.physical.rdbms.model.QS[T]
-  type QSM[T[_[_]], A] = QS[T]#M[A]
-
-  val basePath
-    : Path[Path.Abs, Path.Dir, Sandboxed] = rootDir[Sandboxed] </> dir("db")
-
-  implicit val mtEitherWriter
-    : MonadTell[EitherT[PhaseResultT[Id, ?], FileSystemError, ?],
-                PhaseResults] =
-    EitherT.monadListen[WriterT[Id, Vector[PhaseResult], ?],
-                        PhaseResults,
-                        FileSystemError](
-      WriterT.writerTMonadListen[Id, Vector[PhaseResult]])
-
-  def compileSqlToLP[M[_]: Monad: MonadFsErr: PhaseResultTell](
-      sql: Fix[Sql]): M[Fix[LP]] = {
-    val (_, s) = queryPlan(sql, Variables.empty, basePath, 0L, None).run.run
-    val lp = s.fold(
-      e => scala.sys.error(e.shows),
-      d => d.fold(e => scala.sys.error(e.shows), ι)
-    )
-    lp.point[M]
-  }
-
-  type EitherWriter[A] =
-    EitherT[Writer[Vector[PhaseResult], ?], FileSystemError, A]
-
-  val listContents: DiscoverPath.ListContents[EitherWriter] =
-    dir =>
-      (if (dir ≟ rootDir)
-         Set(DirName("db").left[FileName],
-             DirName("db1").left,
-             DirName("db2").left)
-       else
-         Set(
-           FileName("foo").right[DirName],
-           FileName("foo2").right[DirName],
-           FileName("bar").right,
-           FileName("bar2").right
-         )).point[EitherWriter]
-
-  def plan(sql: Fix[Sql]) = {
-    (compileSqlToLP[EitherWriter](sql) >>= (lp =>
-      Postgres.lpToQScript(lp, listContents))).run.run._2.map(qsToRepr[Fix])
-  }
-
-  import quasar.fp.free._
-
-  implicit def taskNameGenerator: NameGenerator[Task] =
-    new NameGenerator[Task] {
-      var counter = 0L
-      def freshName = {
-        val str = counter.toString
-        counter += 1
-        Task.delay(str)
-      }
-    }
-
-  def runTest[A, S[_]](f: Free[S, A])(implicit S: S :<: Task): A = {
-    f.foldMap(injectNT[S, Task]).unsafePerformSync
-  }
+class PlannerSpec extends Qspec with SqlExprSupport {
 
   case class equalToRepr[L](expected: Repr) extends Matcher[\/[L, Repr]] {
     def apply[S <: \/[L, Repr]](s: Expectable[S]) = {
@@ -124,19 +56,6 @@ class PlannerSpec extends Qspec {
              s,
              NoDetails)
     }
-  }
-
-  implicit val tmerr = new MonadError_[Task, PlannerError] {
-    override def raiseError[A](e: PlannerError): Task[A] =
-      Task.fail(new Exception(e.message))
-    override def handleError[A](fa: Task[A])(
-        f: PlannerError => Task[A]): Task[A] = fa
-  }
-
-  def qsToRepr[T[_[_]]: BirecursiveT: EqualT: ShowT: RenderTreeT](
-      cp: T[QSM[T, ?]]): Repr = {
-    val planner = Planner[T, Task, QSM[T, ?]]
-    cp.cataM(planner.plan).map(_.convertTo[Repr]).unsafePerformSync
   }
 
   def beRepr(expected: SqlExpr[Fix[SqlExpr]]) =
@@ -253,6 +172,28 @@ class PlannerSpec extends Qspec {
           select(selection(exprs(alias("name"), alias(length(data("surname")), "len"))),
             From(Fix(select(selection(*), fromTable("db.foo"))), alias = Id("_0").some))
         })
+    }
+
+
+    "util" in {
+      val qsOrErr = (compileSqlToLP[EitherWriter](sqlE"select name, surname from foo2") >>= (lp =>
+        Postgres.lpToQScript(lp, listContents))).run.run._2
+
+      qsOrErr.map { qs =>
+        println(">>>>>>>>>>>>>>>>>>>>>>>>>>> QSCRIPT >>>>>>>>>>>>>>>>>>>")
+        println(qs)
+        val qsTree = RenderTreeT[Fix].render(qs).shows
+        println(qsTree)
+        println(">>>>>>>>>>>>>>>>>>>>>>>>>>> REPR >>>>>>>>>>>>>>>>>>>")
+        val repr = qsToRepr(qs)
+        val tree = RenderTreeT[Fix].render(repr).shows
+        println(tree)
+        println(">>>>>>>>>>>>>>>>>>>>>>>>>>> SQL >>>>>>>>>>>>>>>>>>>")
+        val query = PostgresJsonRenderQuery.asString(repr)
+        println(query)
+
+      }
+      1.must_===(1)
     }
   }
 }
