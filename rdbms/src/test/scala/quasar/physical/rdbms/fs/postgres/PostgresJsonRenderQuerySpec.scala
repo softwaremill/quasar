@@ -22,6 +22,7 @@ import quasar.Qspec
 import quasar.physical.rdbms.fs.postgres.planner.PostgresJsonRenderQuery
 import quasar.physical.rdbms.planner.sql.SqlExprSupport
 import quasar.sql._
+
 import eu.timepit.refined.auto._
 
 class PostgresJsonRenderQuerySpec extends Qspec with SqlExprSupport {

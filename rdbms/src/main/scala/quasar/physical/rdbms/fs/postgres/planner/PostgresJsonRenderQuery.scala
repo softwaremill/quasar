@@ -16,14 +16,14 @@
 
 package quasar.physical.rdbms.fs.postgres.planner
 
-import matryoshka._
+import slamdata.Predef._
 import quasar.Planner.{NonRepresentableData, PlannerError}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import quasar.physical.rdbms.planner.sql.{RenderQuery, SqlExpr}
 import quasar.DataCodec
-import matryoshka.implicits._
-import slamdata.Predef._
 
+import matryoshka._
+import matryoshka.implicits._
 import scalaz.Scalaz._
 import scalaz._
 

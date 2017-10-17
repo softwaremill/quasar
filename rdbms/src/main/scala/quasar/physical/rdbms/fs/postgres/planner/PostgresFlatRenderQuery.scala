@@ -21,9 +21,9 @@ import quasar.{DataCodec, Data => QData}
 import quasar.physical.rdbms.planner.sql.{RenderQuery, SqlExpr}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import quasar.Planner.{NonRepresentableData, ObjectIdFormatError, PlannerError}
+
 import matryoshka._
 import matryoshka.implicits._
-
 import scalaz._
 import Scalaz._
 
