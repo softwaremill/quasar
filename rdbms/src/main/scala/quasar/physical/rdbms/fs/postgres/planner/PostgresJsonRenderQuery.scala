@@ -44,7 +44,7 @@ object PostgresJsonRenderQuery extends RenderQuery {
   val alg: AlgebraM[PlannerError \/ ?, SqlExpr, String] = {
     case FieldRef(rs) =>
       rs.map(_.flatMap { case ''' => "''"; case iv => iv.toString }).self
-        .right.map(crs => s"""data::json#>'{${crs.mkString(",")}}'""")
+        .right.map(crs => s"""data::jsonb#>'{${crs.mkString(",")}}'""")
     case Data(v) =>
       DataCodec.render(v) \/> NonRepresentableData(v)
     case Null() =>

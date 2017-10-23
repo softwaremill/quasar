@@ -38,7 +38,7 @@ trait PostgresInsert extends RdbmsInsert {
       chunk: Vector[Data]
   ): ConnectionIO[Vector[FileSystemError]] = {
 
-    val fQuery = fr"insert into " ++ Fragment.const(dbPath.shows) ++ fr"(data) values(?::JSON)"
+    val fQuery = fr"insert into " ++ Fragment.const(dbPath.shows) ++ fr"(data) values(?::jsonb)"
 
     Update[Data](fQuery.update.sql)
       .updateMany(chunk)

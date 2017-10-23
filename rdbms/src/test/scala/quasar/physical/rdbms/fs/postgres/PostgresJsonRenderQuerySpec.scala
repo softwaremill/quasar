@@ -31,19 +31,19 @@ class PostgresJsonRenderQuerySpec extends Qspec with SqlExprSupport {
     "render select with single field projection" in {
       plan(sqlE"select user from foo")
         .flatMap(repr => PostgresJsonRenderQuery.asString(repr)) must
-        beRightDisjunction("(select data::json#>'{\"user\"}' from (select * from db.foo ) as _0 )")
+        beRightDisjunction("(select data::jsonb#>'{\"user\"}' from (select * from db.foo ) as _0 )")
     }
 
     "render select with a single embedded field projection" in {
       plan(sqlE"select user.name from foo")
         .flatMap(repr => PostgresJsonRenderQuery.asString(repr)) must
-        beRightDisjunction("(select data::json#>'{\"user\",\"name\"}' from (select * from db.foo ) as _0 )")
+        beRightDisjunction("(select data::jsonb#>'{\"user\",\"name\"}' from (select * from db.foo ) as _0 )")
     }
 
     "render select with an embedded field projection + array ref" in {
       plan(sqlE"select user[1].name from foo")
         .flatMap(repr => PostgresJsonRenderQuery.asString(repr)) must
-        beRightDisjunction("(select data::json#>'{\"user\",1,\"name\"}' from (select * from db.foo ) as _0 )")
+        beRightDisjunction("(select data::jsonb#>'{\"user\",1,\"name\"}' from (select * from db.foo ) as _0 )")
     }
 
 
