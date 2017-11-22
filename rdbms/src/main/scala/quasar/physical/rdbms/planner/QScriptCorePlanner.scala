@@ -22,6 +22,7 @@ import quasar.{NameGenerator, qscript}
 import quasar.Planner.{InternalError, PlannerErrorME}
 import quasar.physical.rdbms.planner.sql.SqlExpr._
 import quasar.physical.rdbms.planner.sql.{SqlExpr, genId}
+import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import quasar.qscript.{FreeMap, MapFunc, QScriptCore}
 
 import matryoshka._
@@ -31,12 +32,13 @@ import matryoshka.patterns._
 import scalaz.Scalaz._
 import scalaz._
 
-class QScriptCorePlanner[T[_[_]]: CorecursiveT,
+class QScriptCorePlanner[T[_[_]]: BirecursiveT,
 F[_]: Monad: NameGenerator: PlannerErrorME](
     mapFuncPlanner: Planner[T, F, MapFunc[T, ?]])
     extends Planner[T, F, QScriptCore[T, ?]] {
 
-  def processFreeMap(f: FreeMap[T], alias: SqlExpr.Id[T[SqlExpr]]): F[T[SqlExpr]] =
+  def processFreeMap(f: FreeMap[T],
+                     alias: SqlExpr.Id[T[SqlExpr]]): F[T[SqlExpr]] =
     f.cataM(interpretM(κ(alias.embed.η[F]), mapFuncPlanner.plan))
 
   def plan: AlgebraM[F, QScriptCore[T, ?], T[SqlExpr]] = {
@@ -47,11 +49,44 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
       } yield
         Select(
           Selection(selection, none),
-          From(src, generatedAlias.some),
+          From(src, generatedAlias),
           filter = none
         ).embed
-    case qscript.Sort(src, bucket, order) =>
-      SqlExpr.Id[T[SqlExpr]]("TODO").embed.point[F]
+    case qscript.Sort(src, _, order) => // TODO what is bucket for?
+
+      // TODO refactor!
+
+      def transformRefs(in: T[SqlExpr]): T[SqlExpr] = {
+        // this transforms Refs to SelectRowRefs, since it needs different rendering
+        (in.project match {
+          case Refs(elems) =>
+            RefsSelectRow(elems)
+          case other =>
+            other
+        }).embed
+      }
+
+      // this pushes down ORDER BY to the deepest possible select
+      // (which is always a SelectRow)
+      def orderByPushdown(in: T[SqlExpr]): F[T[SqlExpr]] = {
+        in.project match {
+          case s @ SqlExpr.SelectRow(_, from, _) =>
+            val orderBy = order.traverse {
+              case (qs, dir) =>
+                processFreeMap(qs, from.alias).map { expr =>
+                  val transformedExpr = expr.transCataT(transformRefs)
+                  OrderBy(transformedExpr, dir)
+                }
+            }
+
+            orderBy.map { o =>
+              val newSelectRow = s.copy(orderBy = o.toList).embed
+              newSelectRow
+            }
+          case other => other.embed.η[F]
+        }
+      }
+      src.transCataTM(orderByPushdown)
     case other =>
       PlannerErrorME[F].raiseError(
         InternalError.fromMsg(s"unsupported QScriptCore: $other"))

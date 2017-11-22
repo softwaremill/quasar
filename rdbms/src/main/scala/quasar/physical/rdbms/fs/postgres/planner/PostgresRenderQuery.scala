@@ -17,6 +17,7 @@
 package quasar.physical.rdbms.fs.postgres.planner
 
 import slamdata.Predef._
+import quasar.common.SortDir.{Ascending, Descending}
 import quasar.Data
 import quasar.DataCodec
 import quasar.DataCodec.Precise.TimeKey
@@ -67,6 +68,13 @@ object PostgresRenderQuery extends RenderQuery {
           s"""$first->${mid.map(e => s"'$e'").intercalate("->")}->>'$last'""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
+    case RefsSelectRow(srcs) =>
+      srcs match {
+        case Vector(first, second) => s"""$first."$second"""".right
+        case first +: mid :+ last =>
+          s"""$first${mid.map(e => s"'$e'").intercalate("->")}->>'$last'""".right
+        case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
+      }
     case Obj(m) =>
       buildJson(m.map {
         case (k, v) => s"'$k', $v"
@@ -98,11 +106,25 @@ object PostgresRenderQuery extends RenderQuery {
     case Select(selection, from, filterOpt) =>
       val selectionStr = selection.v ⊹ alias(selection.alias)
       val filter = ~(filterOpt ∘ (f => s" where ${f.v}"))
-      val fromExpr = s" from ${from.v}" ⊹ alias(from.alias)
+      val fromExpr = s" from ${from.v} ${from.alias.v}"
       s"(select $selectionStr$fromExpr$filter)".right
-    case SelectRow(selection, from) =>
+    case SelectRow(selection, from, order) =>
       val fromExpr = s" from ${from.v}"
-      s"(select ${selection.v}${rowAlias(selection.alias)}$fromExpr${rowAlias(selection.alias)})".right
+
+      val orderStr = order.map { o =>
+        val dirStr = o.sortDir match {
+          case Ascending => "asc"
+          case Descending => "desc"
+        }
+        s"${o.v} $dirStr"
+      }.mkString(", ")
+
+      val orderByStr = if (order.nonEmpty)
+        s" order by $orderStr"
+      else
+       ""
+
+      s"(select ${selection.v}${rowAlias(selection.alias)}$fromExpr${rowAlias(selection.alias)}$orderByStr)".right
     case Constant(Data.Str(v)) =>
       v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right
     case Constant(v) =>

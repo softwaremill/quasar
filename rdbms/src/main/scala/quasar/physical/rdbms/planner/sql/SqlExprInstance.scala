@@ -41,6 +41,7 @@ trait SqlExprTraverse {
       case ConcatStr(a1, a2)   => (f(a1) ⊛ f(a2))(ConcatStr(_, _))
       case Time(a1)            => f(a1) ∘ Time.apply
       case Refs(srcs)          =>  srcs.traverse(f) ∘ Refs.apply
+      case RefsSelectRow(srcs) =>  srcs.traverse(f) ∘ RefsSelectRow.apply
       case Table(name)         => G.point(Table(name))
       case IsNotNull(v)        => f(v) ∘ IsNotNull.apply
       case IfNull(v)           => v.traverse(f) ∘ (IfNull(_))
@@ -56,17 +57,23 @@ trait SqlExprTraverse {
 
       case Select(selection, from, filterOpt) =>
         val sel = f(selection.v) ∘ (i => Selection(i, selection.alias ∘ (a => Id[B](a.v))))
+        val alias = f(from.v).map(b => From(b, Id[B](from.alias.v)))
+
         (sel ⊛
-          (f(from.v) ∘ (From(_, from.alias ∘ (a => Id[B](a.v))))) ⊛
+          alias ⊛
           filterOpt.traverse(i => f(i.v) ∘ Filter.apply))(
           Select(_, _, _)
         )
 
-      case SelectRow(selection, from) =>
+      case SelectRow(selection, from, order) =>
+        val newOrder = order.traverse(o => f(o.v).map(newV => OrderBy(newV, o.sortDir)))
         val sel = f(selection.v) ∘ (i => Selection(i, selection.alias ∘ (a => Id[B](a.v))))
+        val alias = f(from.v).map(b => From(b, Id[B](from.alias.v)))
+
         (sel ⊛
-          (f(from.v) ∘ (From(_, from.alias ∘ (a => Id[B](a.v))))))(
-          SelectRow(_, _)
+          alias ⊛
+          newOrder)(
+          SelectRow(_, _, _)
         )
 
       case Case(wt, Else(e)) =>
