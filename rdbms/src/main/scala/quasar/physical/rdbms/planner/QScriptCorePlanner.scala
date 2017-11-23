@@ -24,11 +24,12 @@ import quasar.physical.rdbms.planner.sql.SqlExpr._
 import quasar.physical.rdbms.planner.sql.{SqlExpr, genId}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import quasar.qscript.{FreeMap, MapFunc, QScriptCore}
-
 import matryoshka._
 import matryoshka.data._
 import matryoshka.implicits._
 import matryoshka.patterns._
+import quasar.common.SortDir
+
 import scalaz.Scalaz._
 import scalaz._
 
@@ -56,7 +57,7 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
 
       // TODO refactor!
 
-      def transformRefs(in: T[SqlExpr]): T[SqlExpr] = {
+      def refsToRowRefs(in: T[SqlExpr]): T[SqlExpr] = {
         // this transforms Refs to SelectRowRefs, since it needs different rendering
         (in.project match {
           case Refs(elems) =>
@@ -66,23 +67,23 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
         }).embed
       }
 
+      def createOrderBy(id: SqlExpr.Id[T[SqlExpr]]):
+      ((FreeMap[T], SortDir)) => F[OrderBy[T[SqlExpr]]] = {
+        case (qs, dir) =>
+          processFreeMap(qs, id).map { expr =>
+            val transformedExpr: T[SqlExpr] = expr.transCataT(refsToRowRefs)
+            OrderBy(transformedExpr, dir)
+          }
+      }
+
       // this pushes down ORDER BY to the deepest possible select
       // (which is always a SelectRow)
       def orderByPushdown(in: T[SqlExpr]): F[T[SqlExpr]] = {
         in.project match {
           case s @ SqlExpr.SelectRow(_, from, _) =>
-            val orderBy = order.traverse {
-              case (qs, dir) =>
-                processFreeMap(qs, from.alias).map { expr =>
-                  val transformedExpr = expr.transCataT(transformRefs)
-                  OrderBy(transformedExpr, dir)
-                }
-            }
-
-            orderBy.map { o =>
-              val newSelectRow = s.copy(orderBy = o.toList).embed
-              newSelectRow
-            }
+            order
+              .traverse(createOrderBy(from.alias))
+              .map(o => s.copy(orderBy = o.toList).embed)
           case other => other.embed.η[F]
         }
       }
