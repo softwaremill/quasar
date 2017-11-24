@@ -158,4 +158,12 @@ class PlannerSpec extends Qspec with SqlExprSupport {
         beSql("(select _0->'aa'->'bb'->'c'->>'d' from (select row_to_json(_0) _0 from db.foo _0) as _0)")
     }
   }
+
+  "QScriptCore" should {
+
+    "represent simple ordering" in {
+      qs(sqlE"select name, surname from foo order by name") must
+        beSql("""(select _0->>'name' as "name", _0->>'surname' as "surname" from (select row_to_json(_0) _0 from db.foo _0 order by _0."name" asc) _0)""")
+    }
+  }
 }

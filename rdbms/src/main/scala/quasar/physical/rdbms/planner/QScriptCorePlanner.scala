@@ -17,6 +17,7 @@
 package quasar.physical.rdbms.planner
 
 import slamdata.Predef._
+import quasar.common.SortDir
 import quasar.fp.ski._
 import quasar.{NameGenerator, qscript}
 import quasar.Planner.{InternalError, PlannerErrorME}
@@ -24,12 +25,11 @@ import quasar.physical.rdbms.planner.sql.SqlExpr._
 import quasar.physical.rdbms.planner.sql.{SqlExpr, genId}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import quasar.qscript.{FreeMap, MapFunc, QScriptCore}
+
 import matryoshka._
 import matryoshka.data._
 import matryoshka.implicits._
 import matryoshka.patterns._
-import quasar.common.SortDir
-
 import scalaz.Scalaz._
 import scalaz._
 
@@ -53,12 +53,9 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
           From(src, generatedAlias),
           filter = none
         ).embed
-    case qscript.Sort(src, _, order) => // TODO what is bucket for?
-
-      // TODO refactor!
+    case qscript.Sort(src, bucket, order) =>
 
       def refsToRowRefs(in: T[SqlExpr]): T[SqlExpr] = {
-        // this transforms Refs to SelectRowRefs, since it needs different rendering
         (in.project match {
           case Refs(elems) =>
             RefsSelectRow(elems)
@@ -76,14 +73,15 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
           }
       }
 
-      // this pushes down ORDER BY to the deepest possible select
-      // (which is always a SelectRow)
       def orderByPushdown(in: T[SqlExpr]): F[T[SqlExpr]] = {
         in.project match {
           case s @ SqlExpr.SelectRow(_, from, _) =>
-            order
-              .traverse(createOrderBy(from.alias))
-              .map(o => s.copy(orderBy = o.toList).embed)
+            for {
+              orderByExprs <- order.traverse(createOrderBy(from.alias))
+              bucketExprs <- bucket.map((_, orderByExprs.head.sortDir)).traverse(createOrderBy(from.alias))
+            }
+              yield s.copy(orderBy = bucketExprs ++ orderByExprs.toList).embed
+
           case other => other.embed.η[F]
         }
       }
