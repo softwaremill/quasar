@@ -53,8 +53,15 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
 
   def plan: AlgebraM[F, QScriptCore[T, ?], T[SqlExpr]] = {
     case qscript.Map(src, f) =>
+
+      // TODO there's something wrong with aliases, this should be dealt with correctly
+      val aliasG: F[SqlExpr.Id[T[SqlExpr]]] = src.project match {
+        case SelectRow(_, From(_, alias), _, _) => alias.η[F]
+        case _ => genId[T[SqlExpr], F]
+      }
+
       for {
-        generatedAlias <- genId[T[SqlExpr], F]
+        generatedAlias <- aliasG
         selection <- processFreeMap(f, generatedAlias)
       } yield
         Select(
