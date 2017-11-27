@@ -63,16 +63,18 @@ object PostgresRenderQuery extends RenderQuery {
       s"row_to_json($alias)".right
     case Refs(srcs) =>
       srcs match {
-        case Vector(first, second) => s"$first->>'$second'".right
+        case Vector(first, second) => s"$first->>$second".right
         case first +: mid :+ last =>
-          s"""$first->${mid.map(e => s"'$e'").intercalate("->")}->>'$last'""".right
+          s"""$first->${mid.map(e => s"$e").intercalate("->")}->>$last""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
     case RefsSelectRow(srcs) =>
       srcs match {
-        case Vector(first, second) => s"""$first."$second"""".right
+        case Vector(first, second) =>
+          val secondStripped = second.stripPrefix("'").stripSuffix("'")
+          s"""$first.$secondStripped""".right
         case first +: mid :+ last =>
-          s"""$first${mid.map(e => s"'$e'").intercalate("->")}->>'$last'""".right
+          s"""$first${mid.map(e => s"$e").intercalate("->")}->>$last""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
     case Obj(m) =>
@@ -128,7 +130,7 @@ object PostgresRenderQuery extends RenderQuery {
       val filterStr = filter.map(f => s""" WHERE ${f.v}""").getOrElse("")
       s"(select ${selection.v}${rowAlias(selection.alias)}$fromExpr${rowAlias(selection.alias)}$filterStr$orderByStr)".right
     case Constant(Data.Str(v)) =>
-      v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right
+      v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right.map(str => s"'$str'")
     case Constant(v) =>
       DataCodec.render(v) \/> NonRepresentableData(v)
     case Case(wt, e) =>
