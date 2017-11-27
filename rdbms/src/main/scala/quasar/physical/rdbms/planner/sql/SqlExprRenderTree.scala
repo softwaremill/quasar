@@ -84,6 +84,8 @@ trait SqlExprRenderTree {
             nonTerminal("And", a1, a2)
           case Or(a1, a2) =>
             nonTerminal("Or", a1, a2)
+          case Eq(a1, a2) =>
+            nonTerminal("Equal", a1, a2)
           case Refs(srcs) =>
             nonTerminal("References", srcs:_*)
           case RefsSelectRow(srcs) =>
@@ -96,17 +98,18 @@ trait SqlExprRenderTree {
                 nt("from", from.alias.v.some, from.v) ::
                 (filter ∘ (f => nt("filter", none, f.v))).toList
             )
-          case SelectRow(selection, from, order) =>
+          case SelectRow(selection, from, order, filter) =>
 
             NonTerminal(
               "SelectRow" :: Nil,
               none,
               nt("selectionInRow", selection.alias ∘ (_.v), selection.v) ::
                 List(nt("fromInRow", from.alias.v.some, from.v)) ++
-                order.map {
+                  order.map {
                   o =>
                     nt(s"OrderBy ${o.sortDir}", none, o.v)
-                }
+                } ++
+                (filter ∘ (f => nt("filter", none, f.v))).toList
             )
 
           case Case(wt, e) =>

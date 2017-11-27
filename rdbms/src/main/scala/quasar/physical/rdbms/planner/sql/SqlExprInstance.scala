@@ -51,6 +51,7 @@ trait SqlExprTraverse {
       case Mod(a1, a2)         => (f(a1) ⊛ f(a2))(Mod.apply)
       case Pow(a1, a2)         => (f(a1) ⊛ f(a2))(Pow.apply)
       case And(a1, a2)         => (f(a1) ⊛ f(a2))(And(_, _))
+      case Eq(a1, a2)          => (f(a1) ⊛ f(a2))(Eq(_, _))
       case Or(a1, a2)          => (f(a1) ⊛ f(a2))(Or(_, _))
       case Neg(v)              => f(v) ∘ Neg.apply
       case WithIds(v)          => f(v) ∘ WithIds.apply
@@ -65,15 +66,17 @@ trait SqlExprTraverse {
           Select(_, _, _)
         )
 
-      case SelectRow(selection, from, order) =>
+      case SelectRow(selection, from, order, filter) =>
         val newOrder = order.traverse(o => f(o.v).map(newV => OrderBy(newV, o.sortDir)))
         val sel = f(selection.v) ∘ (i => Selection(i, selection.alias ∘ (a => Id[B](a.v))))
         val alias = f(from.v).map(b => From(b, Id[B](from.alias.v)))
+        val newFilter = filter.traverse(i => f(i.v) ∘ Filter.apply)
 
         (sel ⊛
           alias ⊛
-          newOrder)(
-          SelectRow(_, _, _)
+          newOrder ⊛
+          newFilter)(
+          SelectRow(_, _, _, _)
         )
 
       case Case(wt, Else(e)) =>

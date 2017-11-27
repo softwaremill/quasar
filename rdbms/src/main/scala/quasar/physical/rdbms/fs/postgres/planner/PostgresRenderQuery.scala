@@ -100,6 +100,8 @@ object PostgresRenderQuery extends RenderQuery {
       s"($a1 and $a2)".right
     case Or(a1, a2) =>
       s"($a1 or $a2)".right
+    case Eq(a1, a2) =>
+      s"($a1 = $a2)".right
     case Neg(str) => s"(-$str)".right
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right
@@ -108,7 +110,7 @@ object PostgresRenderQuery extends RenderQuery {
       val filter = ~(filterOpt ∘ (f => s" where ${f.v}"))
       val fromExpr = s" from ${from.v} ${from.alias.v}"
       s"(select $selectionStr$fromExpr$filter)".right
-    case SelectRow(selection, from, order) =>
+    case SelectRow(selection, from, order, filter) =>
       val fromExpr = s" from ${from.v}"
 
       val orderStr = order.map { o =>
@@ -123,8 +125,8 @@ object PostgresRenderQuery extends RenderQuery {
         s" order by $orderStr"
       else
        ""
-
-      s"(select ${selection.v}${rowAlias(selection.alias)}$fromExpr${rowAlias(selection.alias)}$orderByStr)".right
+      val filterStr = filter.map(f => s""" WHERE ${f.v}""").getOrElse("")
+      s"(select ${selection.v}${rowAlias(selection.alias)}$fromExpr${rowAlias(selection.alias)}$filterStr$orderByStr)".right
     case Constant(Data.Str(v)) =>
       v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right
     case Constant(v) =>

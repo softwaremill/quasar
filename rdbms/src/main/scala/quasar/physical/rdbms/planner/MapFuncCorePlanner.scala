@@ -109,7 +109,7 @@ class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]:Applicative:PlannerE
     case MFC.Modulo(f1, f2) => SQL.Mod[T[SQL]](f1, f2).embed.η[F]
     case MFC.Power(f1, f2) =>  SQL.Pow[T[SQL]](f1, f2).embed.η[F]
     case MFC.Not(f) =>  notImplemented("Not", this)
-    case MFC.Eq(f1, f2) =>  notImplemented("Eq", this)
+    case MFC.Eq(f1, f2) => SQL.Eq[T[SQL]](f1, f2).embed.η[F]
     case MFC.Neq(f1, f2) =>  notImplemented("Neq", this)
     case MFC.Lt(f1, f2) =>  notImplemented("Lt", this)
     case MFC.Lte(f1, f2) => notImplemented("Lte", this)

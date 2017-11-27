@@ -42,6 +42,15 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
                      alias: SqlExpr.Id[T[SqlExpr]]): F[T[SqlExpr]] =
     f.cataM(interpretM(κ(alias.embed.η[F]), mapFuncPlanner.plan))
 
+  def refsToRowRefs(in: T[SqlExpr]): T[SqlExpr] = {
+    (in.project match {
+      case Refs(elems) =>
+        RefsSelectRow(elems)
+      case other =>
+        other
+    }).embed
+  }
+
   def plan: AlgebraM[F, QScriptCore[T, ?], T[SqlExpr]] = {
     case qscript.Map(src, f) =>
       for {
@@ -55,15 +64,6 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
         ).embed
     case qscript.Sort(src, bucket, order) =>
 
-      def refsToRowRefs(in: T[SqlExpr]): T[SqlExpr] = {
-        (in.project match {
-          case Refs(elems) =>
-            RefsSelectRow(elems)
-          case other =>
-            other
-        }).embed
-      }
-
       def createOrderBy(id: SqlExpr.Id[T[SqlExpr]]):
       ((FreeMap[T], SortDir)) => F[OrderBy[T[SqlExpr]]] = {
         case (qs, dir) =>
@@ -75,7 +75,7 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
 
       def orderByPushdown(in: T[SqlExpr]): F[T[SqlExpr]] = {
         in.project match {
-          case s @ SqlExpr.SelectRow(_, from, _) =>
+          case s @ SqlExpr.SelectRow(_, from, _, _) =>
             for {
               orderByExprs <- order.traverse(createOrderBy(from.alias))
               bucketExprs <- bucket.map((_, orderByExprs.head.sortDir)).traverse(createOrderBy(from.alias))
@@ -86,6 +86,20 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
         }
       }
       src.transCataTM(orderByPushdown)
+
+    case qscript.Filter(src, f) =>
+
+      def filterPushdown(in: T[SqlExpr]): F[T[SqlExpr]] = {
+          in.project match {
+            case s @ SqlExpr.SelectRow(_, from, _, _) =>
+              processFreeMap(f, from.alias).map(
+                ff => s.copy(filter = Some(Filter(ff))).embed.transCataT(refsToRowRefs))
+            case other => other.embed.η[F]
+          }
+      }
+
+      src.transCataTM(filterPushdown)
+
     case other =>
       PlannerErrorME[F].raiseError(
         InternalError.fromMsg(s"unsupported QScriptCore: $other"))

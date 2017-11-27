@@ -47,7 +47,7 @@ object SqlExpr extends SqlExprInstances {
   final case class ExprWithAlias[T](expr: T, alias: String) extends SqlExpr[T]
   final case class ExprPair[T](a: T, b: T) extends SqlExpr[T]
 
-  final case class SelectRow[T](selection: Selection[T], from: From[T], orderBy: List[OrderBy[T]])
+  final case class SelectRow[T](selection: Selection[T], from: From[T], orderBy: List[OrderBy[T]], filter: Option[Filter[T]])
       extends SqlExpr[T]
 
   final case class Select[T](selection: Selection[T],
@@ -65,6 +65,7 @@ object SqlExpr extends SqlExprInstances {
 
   final case class And[T](a1: T, a2: T) extends SqlExpr[T]
   final case class Or[T](a1: T, a2: T) extends SqlExpr[T]
+  final case class Eq[T](a1: T, a2: T) extends SqlExpr[T]
 
   final case class Constant[T](data: Data) extends SqlExpr[T]
 
