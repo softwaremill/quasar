@@ -63,9 +63,9 @@ object PostgresRenderQuery extends RenderQuery {
       s"row_to_json($alias)".right
     case Refs(srcs) =>
       srcs match {
-        case Vector(first, second) => s"$first->>$second".right
+        case Vector(first, second) => s"$first->$second".right
         case first +: mid :+ last =>
-          s"""$first->${mid.map(e => s"$e").intercalate("->")}->>$last""".right
+          s"""$first->${mid.map(e => s"$e").intercalate("->")}->$last""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
     case RefsSelectRow(srcs) =>
@@ -74,7 +74,7 @@ object PostgresRenderQuery extends RenderQuery {
           val secondStripped = second.stripPrefix("'").stripSuffix("'")
           s"""$first.$secondStripped""".right
         case first +: mid :+ last =>
-          s"""$first${mid.map(e => s"$e").intercalate("->")}->>$last""".right
+          s"""$first${mid.map(e => s"$e").intercalate("->")}->$last""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
     case Obj(m) =>
@@ -110,8 +110,8 @@ object PostgresRenderQuery extends RenderQuery {
     case Select(selection, from, filterOpt) =>
       val selectionStr = selection.v ⊹ alias(selection.alias)
       val filter = ~(filterOpt ∘ (f => s" where ${f.v}"))
-      val fromExpr = s" from ${from.v} ${from.alias.v}"
-      s"(select $selectionStr$fromExpr$filter)".right
+      val fromExpr = s" from ${from.v}"
+      s"(select row_to_json(${from.alias.v}) from (select $selectionStr$fromExpr ${from.alias.v}$filter) ${from.alias.v})".right
     case SelectRow(selection, from, order, filter) =>
       val fromExpr = s" from ${from.v}"
 
