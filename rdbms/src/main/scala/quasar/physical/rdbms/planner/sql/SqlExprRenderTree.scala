@@ -86,6 +86,14 @@ trait SqlExprRenderTree {
             nonTerminal("Or", a1, a2)
           case Eq(a1, a2) =>
             nonTerminal("Equal", a1, a2)
+          case Lt(a1, a2) =>
+            nonTerminal("<", a1, a2)
+          case Lte(a1, a2) =>
+            nonTerminal("<=", a1, a2)
+          case Gt(a1, a2) =>
+            nonTerminal(">", a1, a2)
+          case Gte(a1, a2) =>
+            nonTerminal(">=", a1, a2)
           case Refs(srcs) =>
             nonTerminal("References", srcs:_*)
           case RefsSelectRow(srcs) =>

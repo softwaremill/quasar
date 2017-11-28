@@ -104,6 +104,14 @@ object PostgresRenderQuery extends RenderQuery {
       s"($a1 or $a2)".right
     case Eq(a1, a2) =>
       s"($a1 = $a2)".right
+    case Lt(a1, a2) =>
+      s"($a1 = $a2)".right
+    case Lte(a1, a2) =>
+      s"($a1 = $a2)".right
+    case Gt(a1, a2) =>
+      s"($a1 = $a2)".right
+    case Gte(a1, a2) =>
+      s"($a1 = $a2)".right
     case Neg(str) => s"(-$str)".right
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right

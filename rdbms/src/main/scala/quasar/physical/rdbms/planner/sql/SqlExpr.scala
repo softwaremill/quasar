@@ -65,7 +65,12 @@ object SqlExpr extends SqlExprInstances {
 
   final case class And[T](a1: T, a2: T) extends SqlExpr[T]
   final case class Or[T](a1: T, a2: T) extends SqlExpr[T]
+
   final case class Eq[T](a1: T, a2: T) extends SqlExpr[T]
+  final case class Lt[T](a1: T, a2: T) extends SqlExpr[T]
+  final case class Lte[T](a1: T, a2: T) extends SqlExpr[T]
+  final case class Gt[T](a1: T, a2: T) extends SqlExpr[T]
+  final case class Gte[T](a1: T, a2: T) extends SqlExpr[T]
 
   final case class Constant[T](data: Data) extends SqlExpr[T]
 
