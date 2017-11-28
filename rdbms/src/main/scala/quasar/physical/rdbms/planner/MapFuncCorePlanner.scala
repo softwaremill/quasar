@@ -119,7 +119,7 @@ class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]:Applicative:PlannerE
     case MFC.And(f1, f2) =>  SQL.And[T[SQL]](f1, f2).embed.η[F]
     case MFC.Or(f1, f2) =>  SQL.Or[T[SQL]](f1, f2).embed.η[F]
     case MFC.Between(f1, f2, f3) =>  notImplemented("Between", this)
-    case MFC.Cond(fCond, fThen, fElse) =>  notImplemented("Cond", this)
+    case MFC.Cond(fCond, fThen, fElse) =>  SQL.Case(NonEmptyList(WhenThen(fCond, fThen)), Else(fElse)).embed.η[F]
     case MFC.Within(f1, f2) =>  notImplemented("Within", this)
     case MFC.Lower(f) =>  notImplemented("Lower", this)
     case MFC.Upper(f) =>  notImplemented("Upper", this)
