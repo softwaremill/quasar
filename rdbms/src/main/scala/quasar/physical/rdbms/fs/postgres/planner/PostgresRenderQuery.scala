@@ -60,12 +60,14 @@ object PostgresRenderQuery extends RenderQuery {
     case Table(v) =>
       v.right
     case AllCols(alias) =>
-      s"row_to_json($alias)".right
+      s"*".right
     case Refs(srcs) =>
       srcs match {
-        case Vector(first, second) => s"$first->$second".right
+        case Vector(first, second) =>
+          val secondStripped = second.stripPrefix("'").stripSuffix("'")
+          s"""$first.$secondStripped""".right
         case first +: mid :+ last =>
-          s"""$first->${mid.map(e => s"$e").intercalate("->")}->$last""".right
+          s"""$first.${mid.map(e => e.stripPrefix("'").stripSuffix("'")).intercalate("->")}->$last""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
     case RefsSelectRow(srcs) =>
@@ -74,7 +76,7 @@ object PostgresRenderQuery extends RenderQuery {
           val secondStripped = second.stripPrefix("'").stripSuffix("'")
           s"""$first.$secondStripped""".right
         case first +: mid :+ last =>
-          s"""$first${mid.map(e => s"$e").intercalate("->")}->$last""".right
+          s"""$first.${mid.map(e => e.stripPrefix("'").stripSuffix("'")).intercalate("->")}->$last""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
     case Obj(m) =>
@@ -95,24 +97,24 @@ object PostgresRenderQuery extends RenderQuery {
       s"$str1 || $str2".right
     case Time(expr) =>
       buildJson(s"""{ "$TimeKey": $expr }""").right
-    case NumericOp(sym, left, right) => s"(($left)::numeric $sym ($right)::numeric)".right
-    case Mod(a1, a2) => s"mod(($a1)::numeric, ($a2)::numeric)".right
-    case Pow(a1, a2) => s"power(($a1)::numeric, ($a2)::numeric)".right
+    case NumericOp(sym, left, right) => s"(($left) $sym ($right))".right
+    case Mod(a1, a2) => s"mod(($a1::text::numeric), ($a2::text::numeric))".right
+    case Pow(a1, a2) => s"power(($a1), ($a2))".right
     case And(a1, a2) =>
       s"($a1 and $a2)".right
     case Or(a1, a2) =>
       s"($a1 or $a2)".right
     case Eq(a1, a2) =>
-      s"($a1 = $a2)".right
+      s"(($a1)::text = ($a2)::text)".right
     case Lt(a1, a2) =>
-      s"($a1 = $a2)".right
+      s"(($a1)::text::numeric < ($a2)::text::numeric)".right
     case Lte(a1, a2) =>
-      s"($a1 = $a2)".right
+      s"(($a1)::text::numeric <= ($a2)::text::numeric)".right
     case Gt(a1, a2) =>
-      s"($a1 = $a2)".right
+      s"(($a1)::text::numeric > ($a2)::text::numeric)".right
     case Gte(a1, a2) =>
-      s"($a1 = $a2)".right
-    case Neg(str) => s"(-$str)".right
+      s"(($a1)::text::numeric >= ($a2)::text::numeric)".right
+    case Neg(str) => s"(-($str))".right
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right
     case Select(selection, from, filterOpt) =>
@@ -136,7 +138,7 @@ object PostgresRenderQuery extends RenderQuery {
       else
        ""
       val filterStr = filter.map(f => s""" WHERE ${f.v}""").getOrElse("")
-      s"(select ${selection.v}${rowAlias(selection.alias)}$fromExpr${rowAlias(selection.alias)}$filterStr$orderByStr)".right
+      s"(select ${selection.v}$fromExpr${rowAlias(selection.alias)}$filterStr$orderByStr)".right
     case Constant(Data.Str(v)) =>
       v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right.map(str => s"'$str'")
     case Constant(v) =>
