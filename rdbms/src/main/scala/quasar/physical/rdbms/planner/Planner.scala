@@ -80,6 +80,10 @@ object Planner {
   F[_]: Monad: NameGenerator: PlannerErrorME]
   : Planner[T, F, EquiJoin[T, ?]] = unreachable("equijoin")
 
+  def reduceFuncPlanner[T[_[_]]: CorecursiveT, F[_]: Applicative: PlannerErrorME]
+  : Planner[T, F, ReduceFunc] =
+    new ReduceFuncPlanner[T, F]
+
   implicit def coproduct[T[_[_]], N[_], F[_], G[_]](
                                                      implicit F: Planner[T, N, F], G: Planner[T, N, G]
                                                    ): Planner[T, N, Coproduct[F, G, ?]] =

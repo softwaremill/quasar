@@ -53,11 +53,14 @@ trait SqlExprTraverse {
       case And(a1, a2)         => (f(a1) ⊛ f(a2))(And(_, _))
       case Eq(a1, a2)          => (f(a1) ⊛ f(a2))(Eq(_, _))
       case Lt(a1, a2)          => (f(a1) ⊛ f(a2))(Lt(_, _))
-      case Lte(a1, a2)          => (f(a1) ⊛ f(a2))(Lte(_, _))
+      case Lte(a1, a2)         => (f(a1) ⊛ f(a2))(Lte(_, _))
       case Gt(a1, a2)          => (f(a1) ⊛ f(a2))(Gt(_, _))
-      case Gte(a1, a2)          => (f(a1) ⊛ f(a2))(Gte(_, _))
+      case Gte(a1, a2)         => (f(a1) ⊛ f(a2))(Gte(_, _))
       case Or(a1, a2)          => (f(a1) ⊛ f(a2))(Or(_, _))
       case Neg(v)              => f(v) ∘ Neg.apply
+      case Avg(v)              => f(v) ∘ Avg.apply
+      case Count(v)            => f(v) ∘ Count.apply
+      case Min(v)              => f(v) ∘ Min.apply
       case WithIds(v)          => f(v) ∘ WithIds.apply
 
       case Select(selection, from, filterOpt) =>

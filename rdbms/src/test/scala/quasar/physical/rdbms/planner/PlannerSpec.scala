@@ -176,5 +176,9 @@ class PlannerSpec extends Qspec with SqlExprSupport {
         beSql("""(select _0->>'name' from (select row_to_json(_0) _0 from db.foo _0 WHERE ((_0.surname = 'Kowalski') and (_0.age = 25))) _0)""")
     }
 
+    "represent distinct" in {
+      qs(sqlE"""select distinct name from foo""") must
+        beSql("""TODO""")
+    }
   }
 }

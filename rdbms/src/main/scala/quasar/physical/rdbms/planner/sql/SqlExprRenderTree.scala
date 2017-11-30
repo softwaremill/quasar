@@ -98,6 +98,12 @@ trait SqlExprRenderTree {
             nonTerminal("References", srcs:_*)
           case RefsSelectRow(srcs) =>
             nonTerminal("SelectRow References", srcs:_*)
+          case Avg(a1) =>
+            nonTerminal("Neg", a1)
+          case Min(a1) =>
+            nonTerminal("Neg", a1)
+          case Count(a1) =>
+            nonTerminal("Neg", a1)
           case Select(selection, from, filter) =>
             NonTerminal(
               "Select" :: Nil,

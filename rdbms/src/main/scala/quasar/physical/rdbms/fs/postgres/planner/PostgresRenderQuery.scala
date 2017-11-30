@@ -115,6 +115,12 @@ object PostgresRenderQuery extends RenderQuery {
     case Gte(a1, a2) =>
       s"(($a1)::text::numeric >= ($a2)::text::numeric)".right
     case Neg(str) => s"(-($str))".right
+    case Avg(a1) =>
+      s"avg($a1)".right
+    case Count(a1) =>
+      s"count($a1)".right
+    case Min(a1) =>
+      s"min($a1)".right
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right
     case Select(selection, from, filterOpt) =>
