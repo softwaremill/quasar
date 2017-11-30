@@ -35,11 +35,13 @@ trait SqlExprTraverse {
       case Obj(m)              => m.traverse(_.bitraverse(f, f)) ∘ (l => Obj(l))
       case Constant(d)         => G.point(Constant(d))
       case Id(str)             => G.point(Id(str))
+      case Arr(l)              => l.traverse(f) ∘ (Arr(_))
       case RegexMatches(a1, a2) => (f(a1) ⊛ f(a2))(RegexMatches(_, _))
       case ExprWithAlias(e, a) => (f(e) ⊛ G.point(a))(ExprWithAlias.apply)
       case ExprPair(e1, e2)    => (f(e1) ⊛ f(e2))(ExprPair.apply)
       case ConcatStr(a1, a2)   => (f(a1) ⊛ f(a2))(ConcatStr(_, _))
       case Time(a1)            => f(a1) ∘ Time.apply
+      case SelectElem(a1, a2)  => (f(a1) ⊛ f(a2))(SelectElem(_, _))
       case Refs(srcs)          =>  srcs.traverse(f) ∘ Refs.apply
       case RefsSelectRow(srcs) =>  srcs.traverse(f) ∘ RefsSelectRow.apply
       case Table(name)         => G.point(Table(name))
@@ -60,7 +62,9 @@ trait SqlExprTraverse {
       case Neg(v)              => f(v) ∘ Neg.apply
       case Avg(v)              => f(v) ∘ Avg.apply
       case Count(v)            => f(v) ∘ Count.apply
+      case Distinct(v)         => f(v) ∘ Distinct.apply
       case Min(v)              => f(v) ∘ Min.apply
+      case ArrAgg(a1)          => f(a1) ∘ (ArrAgg(_))
       case WithIds(v)          => f(v) ∘ WithIds.apply
 
       case Select(selection, from, filterOpt) =>

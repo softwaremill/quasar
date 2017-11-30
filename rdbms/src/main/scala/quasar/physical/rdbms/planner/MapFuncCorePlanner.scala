@@ -131,7 +131,7 @@ class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]:Applicative:PlannerE
     case MFC.Search(fStr, fPattern, fInsen) => notImplemented("Search", this)
     case MFC.Substring(fStr, fFrom, fCount) => notImplemented("Substring", this)
     case MFC.Split(fStr, fDelim) => notImplemented("Split", this)
-    case MFC.MakeArray(f) =>  notImplemented("MakeArray", this)
+    case MFC.MakeArray(f) => Arr(List(f)).embed.η[F]
     case MFC.MakeMap(key, value) =>
       key.project match {
               case Constant(Data.Str(keyStr)) =>

@@ -30,7 +30,7 @@ import Scalaz._
 final class ReduceFuncPlanner[T[_[_]]: CorecursiveT, F[_]: Applicative: PlannerErrorME] extends Planner[T, F, ReduceFunc] {
 
   def plan: AlgebraM[F, ReduceFunc, T[SqlExpr]] = {
-    case RF.Arbitrary(a1)      => Min(a1).embed.η[F]
+    case RF.Arbitrary(a1)      => Distinct(a1).embed.η[F]
     case RF.Avg(a1)            => Avg(a1).embed.η[F]
     case RF.Count(a1)          => Count(a1).embed.η[F]
     case RF.First(a1)          => notImplemented[F, T[SqlExpr]]("First", this)

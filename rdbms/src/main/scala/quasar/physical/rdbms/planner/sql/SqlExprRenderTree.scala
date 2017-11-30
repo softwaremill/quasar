@@ -58,6 +58,8 @@ trait SqlExprRenderTree {
             nonTerminal(s"ExprWithAlias($a)", e)
           case ExprPair(expr1, expr2) =>
             NonTerminal("Pair" :: Nil, none, List(expr1, expr2) ∘ r.render)
+          case SelectElem(a1, a2) =>
+            nonTerminal("SelectElem", a1, a2)
           case ConcatStr(a1, a2) =>
             nonTerminal("ConcatStr", a1, a2)
           case Time(a1) =>
@@ -99,11 +101,17 @@ trait SqlExprRenderTree {
           case RefsSelectRow(srcs) =>
             nonTerminal("SelectRow References", srcs:_*)
           case Avg(a1) =>
-            nonTerminal("Neg", a1)
+            nonTerminal("Avg", a1)
           case Min(a1) =>
-            nonTerminal("Neg", a1)
+            nonTerminal("Min", a1)
           case Count(a1) =>
-            nonTerminal("Neg", a1)
+            nonTerminal("Count", a1)
+          case Distinct(a1) =>
+            nonTerminal("Distinct", a1)
+          case ArrAgg(a1) =>
+            nonTerminal("ArrAgg", a1)
+          case Arr(l) =>
+            nonTerminal("Arr", l: _*)
           case Select(selection, from, filter) =>
             NonTerminal(
               "Select" :: Nil,

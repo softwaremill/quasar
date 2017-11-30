@@ -40,6 +40,8 @@ object SqlExpr extends SqlExprInstances {
 
   final case class Null[T]() extends SqlExpr[T]
   final case class Obj[T](m: List[(T, T)]) extends SqlExpr[T]
+  final case class Arr[T](l: List[T]) extends SqlExpr[T]
+  final case class SelectElem[T](a1: T, a2: T) extends SqlExpr[T]
   final case class IsNotNull[T](a1: T) extends SqlExpr[T]
   final case class ConcatStr[T](a1: T, a2: T) extends SqlExpr[T]
   final case class Time[T](a1: T) extends SqlExpr[T]
@@ -74,9 +76,11 @@ object SqlExpr extends SqlExprInstances {
 
   final case class Constant[T](data: Data) extends SqlExpr[T]
 
-  final case class Avg[T](a1: T)    extends SqlExpr[T]
-  final case class Count[T](a1: T)  extends SqlExpr[T]
-  final case class Min[T](a1: T)    extends SqlExpr[T]
+  final case class Avg[T](a1: T)      extends SqlExpr[T]
+  final case class Count[T](a1: T)    extends SqlExpr[T]
+  final case class Distinct[T](a1: T) extends SqlExpr[T]
+  final case class Min[T](a1: T)      extends SqlExpr[T]
+  final case class ArrAgg[T](a1: T)   extends SqlExpr[T]
 
   final case class RegexMatches[T](a1: T, a2: T) extends SqlExpr[T]
   object Select {

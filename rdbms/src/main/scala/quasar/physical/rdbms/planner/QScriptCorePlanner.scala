@@ -19,17 +19,18 @@ package quasar.physical.rdbms.planner
 import slamdata.Predef._
 import quasar.common.SortDir
 import quasar.fp.ski._
-import quasar.{NameGenerator, qscript}
+import quasar.{Data, NameGenerator, qscript}
 import quasar.Planner.{InternalError, PlannerErrorME}
+import quasar.physical.rdbms.planner.Planner.reduceFuncPlanner
 import quasar.physical.rdbms.planner.sql.SqlExpr._
 import quasar.physical.rdbms.planner.sql.{SqlExpr, genId}
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
-import quasar.qscript.{FreeMap, MapFunc, QScriptCore}
-
+import quasar.qscript.{FreeMap, MapFunc, MapFuncCore, MapFuncsCore, QScriptCore}
 import matryoshka._
 import matryoshka.data._
 import matryoshka.implicits._
 import matryoshka.patterns._
+
 import scalaz.Scalaz._
 import scalaz._
 
@@ -37,6 +38,8 @@ class QScriptCorePlanner[T[_[_]]: BirecursiveT,
 F[_]: Monad: NameGenerator: PlannerErrorME](
     mapFuncPlanner: Planner[T, F, MapFunc[T, ?]])
     extends Planner[T, F, QScriptCore[T, ?]] {
+
+  def int(i: Int) = Constant[T[SqlExpr]](Data.Int(i)).embed
 
   def processFreeMap(f: FreeMap[T],
                      alias: SqlExpr.Id[T[SqlExpr]]): F[T[SqlExpr]] =
@@ -106,6 +109,23 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
       }
 
       src.transCataTM(filterPushdown)
+
+    case qscript.Reduce(src, bucket, reducers, repair) =>
+      for {
+        id1 <- genId[T[SqlExpr], F]
+        b <- processFreeMap(bucket  match {
+          case Nil => MapFuncsCore.NullLit()
+          case _ => MapFuncCore.StaticArray(bucket)
+        }, id1)
+        red <- reducers.traverse(_.traverse(processFreeMap(_, id1)) >>= reduceFuncPlanner[T, F].plan)
+        rep <- repair.cataM(interpretM(
+          _.idx.fold(i => SelectElem(SelectElem(ArrAgg(b).embed, int(0)).embed, int(i)).embed, red(_)).point[F],
+          mapFuncPlanner.plan))
+
+      }
+        yield {
+          Select(Selection(rep, None), From(src, id1), filter = None).embed
+        }
 
     case other =>
       PlannerErrorME[F].raiseError(

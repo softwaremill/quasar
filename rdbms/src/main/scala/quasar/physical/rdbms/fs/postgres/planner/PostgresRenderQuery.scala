@@ -121,6 +121,14 @@ object PostgresRenderQuery extends RenderQuery {
       s"count($a1)".right
     case Min(a1) =>
       s"min($a1)".right
+    case Distinct(a1) =>
+      s"distinct($a1)".right
+    case ArrAgg(a1) =>
+      s"array_agg($a1)".right
+    case SelectElem(a1, a2) =>
+      s"$a1[$a2]".right
+    case Arr(l) =>
+      l.mkString("[", ", ", "]").right
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right
     case Select(selection, from, filterOpt) =>
