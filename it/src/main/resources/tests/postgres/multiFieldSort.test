@@ -1,0 +1,23 @@
+{
+  "name": "multi field order postgres",
+
+  "backends": {
+  },
+
+  "data": "sort.data",
+
+  "query": "select age, name.first from sort order by name.first desc, age desc",
+
+  "predicate": "exactly",
+  "ignoreResultOrder": true,
+
+  "ignoredFields": [],
+
+  "ignoreFieldOrder": true,
+
+  "expected": [
+    {"age": 12, "first": "John"},
+    {"age": 35, "first": "Bob"},
+    {"age": 34, "first": "Bob"}
+  ]
+}
