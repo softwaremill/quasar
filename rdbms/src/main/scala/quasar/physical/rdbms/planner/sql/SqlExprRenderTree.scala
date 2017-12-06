@@ -110,19 +110,6 @@ trait SqlExprRenderTree {
                       nt(s"OrderBy ${o.sortDir}", none, o.v)
                   }
             )
-          case SelectRow(selection, from, order) =>
-
-            NonTerminal(
-              "SelectRow" :: Nil,
-              none,
-              nt("selectionInRow", selection.alias ∘ (_.v), selection.v) ::
-                List(nt("fromInRow", from.alias.v.some, from.v)) ++
-                order.map {
-                  o =>
-                    nt(s"OrderBy ${o.sortDir}", none, o.v)
-                }
-            )
-
           case Case(wt, e) =>
             NonTerminal("Case" :: Nil, none,
               (wt ∘ (i => nonTerminal("whenThen", i.when, i.`then`))).toList :+

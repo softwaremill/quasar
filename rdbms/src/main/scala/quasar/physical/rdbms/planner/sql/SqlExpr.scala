@@ -47,9 +47,6 @@ object SqlExpr extends SqlExprInstances {
   final case class ExprPair[T](a: T, b: T) extends SqlExpr[T]
   final case class ToJson[T](a: T) extends SqlExpr[T]
 
-  final case class SelectRow[T](selection: Selection[T], from: From[T], orderBy: List[OrderBy[T]])
-      extends SqlExpr[T]
-
   final case class Select[T](selection: Selection[T],
                              from: From[T],
                              filter: Option[Filter[T]],

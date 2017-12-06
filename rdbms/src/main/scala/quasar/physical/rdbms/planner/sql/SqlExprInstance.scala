@@ -71,17 +71,6 @@ trait SqlExprTraverse {
           newOrder)(
           Select(_, _, _, _)
         )
-      case SelectRow(selection, from, order) =>
-        val newOrder = order.traverse(o => f(o.v).map(newV => OrderBy(newV, o.sortDir)))
-        val sel = f(selection.v) ∘ (i => Selection(i, selection.alias ∘ (a => Id[B](a.v))))
-        val alias = f(from.v).map(b => From(b, Id[B](from.alias.v)))
-
-        (sel ⊛
-          alias ⊛
-          newOrder)(
-          SelectRow(_, _, _)
-        )
-
       case Case(wt, Else(e)) =>
         (wt.traverse { case WhenThen(w, t) => (f(w) ⊛ f(t))(WhenThen(_, _)) } ⊛
           f(e)

@@ -120,7 +120,6 @@ object PostgresRenderQuery extends RenderQuery {
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right
     case Select(selection, from, filterOpt, order) =>
-      val selectionStr = selection.v ⊹ alias(selection.alias)
       val filter = ~(filterOpt ∘ (f => s" where ${f.v}"))
       val orderStr = order.map { o =>
         val dirStr = o.sortDir match {
@@ -136,23 +135,7 @@ object PostgresRenderQuery extends RenderQuery {
         ""
 
       val fromExpr = s" from ${from.v} ${from.alias.v}"
-      s"(select $selectionStr$fromExpr$filter$orderByStr)".right
-    case SelectRow(selection, from, order) =>
-      val fromExpr = s" from ${from.v}"
-
-      val orderStr = order.map { o =>
-        val dirStr = o.sortDir match {
-          case Ascending => "asc"
-          case Descending => "desc"
-        }
-        s"${o.v} $dirStr"
-      }.mkString(", ")
-
-      val orderByStr = if (order.nonEmpty)
-        s" order by $orderStr"
-      else
-       ""
-      s"(select ${selection.v}$fromExpr$orderByStr)".right
+      s"(select ${selection.v}$fromExpr$filter$orderByStr)".right
     case Constant(Data.Str(v)) =>
       v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right
     case Constant(v) =>

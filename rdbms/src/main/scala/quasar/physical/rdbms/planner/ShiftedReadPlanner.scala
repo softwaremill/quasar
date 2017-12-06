@@ -49,7 +49,7 @@ class ShiftedReadPlanner[
           case ExcludeId => AllCols[R]().embed
           case IncludeId => WithIds[R](AllCols[R]().embed).embed
         }
-        SelectRow(Selection[R](fields, alias = rowAlias.some), from, orderBy = Nil).embed
+        Select(Selection[R](fields, alias = rowAlias.some), from, orderBy = Nil, filter = none).embed
       }
   }
 

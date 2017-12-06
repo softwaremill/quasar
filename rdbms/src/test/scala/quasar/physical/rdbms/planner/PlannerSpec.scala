@@ -105,8 +105,8 @@ class PlannerSpec extends Qspec with SqlExprSupport {
         beRepr({
           select(
             selection(*, alias = None),
-            From(Fix(SelectRow(selection(*, alias = Some(id(1))),
-              fromTable("db.foo", id0), orderBy = Nil)),
+            From(Fix(Select(selection(*, alias = Some(id(1))),
+              fromTable("db.foo", id0), orderBy = Nil, filter = None)),
               alias = id(2)))
         })
     }
@@ -127,22 +127,22 @@ class PlannerSpec extends Qspec with SqlExprSupport {
 
     "build plan including ids" in {
       expectShiftedReadRepr(forIdStatus = IncludeId, expectedRepr = {
-        SelectRow(selection(Fix(WithIds(*)), alias = Some(id(1))),
-          fromTable("db.foo", id0), orderBy = Nil)
+        Select(selection(Fix(WithIds(*)), alias = Some(id(1))),
+          fromTable("db.foo", id0), orderBy = Nil, filter = None)
       })
     }
 
     "build plan only for ids" in {
       expectShiftedReadRepr(forIdStatus = IdOnly, expectedRepr = {
-        SelectRow(selection(Fix(RowIds()), alias = Some(id(1))),
-          fromTable("db.foo", id0), orderBy = Nil)
+        Select(selection(Fix(RowIds()), alias = Some(id(1))),
+          fromTable("db.foo", id0), orderBy = Nil, filter = None)
       })
     }
 
     "build plan only for excluded ids" in {
       expectShiftedReadRepr(forIdStatus = ExcludeId, expectedRepr = {
-        SelectRow(selection(*, alias = Some(id(1))),
-          fromTable("db.foo", id0), orderBy = Nil)
+        Select(selection(*, alias = Some(id(1))),
+          fromTable("db.foo", id0), orderBy = Nil, filter = None)
       })
     }
   }
