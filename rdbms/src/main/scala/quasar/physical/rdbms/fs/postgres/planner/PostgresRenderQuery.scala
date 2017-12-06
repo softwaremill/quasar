@@ -41,7 +41,7 @@ object PostgresRenderQuery extends RenderQuery {
   implicit val codec: DataCodec = DataCodec.Precise
 
   def asString[T[_[_]]: BirecursiveT](a: T[SqlExpr]): PlannerError \/ String = {
-    val q = a.cataM(alg)
+    val q = a.transCataT(transformRelationalOp).cataM(alg)
 
     a.project match {
       case s: Select[T[SqlExpr]] => q ∘ (s => s"select row_to_json(row) from $s row")
@@ -55,6 +55,25 @@ object PostgresRenderQuery extends RenderQuery {
 
   def buildJson(str: String): String =
     s"json_build_object($str)#>>'{}'"
+
+  def transformRelationalOp[T[_[_]]: BirecursiveT](in: T[SqlExpr]): T[SqlExpr] = {
+
+    def quotedStr(a: T[SqlExpr]): T[SqlExpr] =
+      a.project match {
+        case c@Constant(Data.Str(v)) =>
+          Constant[T[SqlExpr]](Data.Str(s""""$v"""")).embed
+        case other => other.embed
+      }
+
+    in.project match {
+      case Eq(a1, a2) =>
+        Eq[T[SqlExpr]](quotedStr(a1), quotedStr(a2)).embed
+      case Lt(a1, a2) =>
+        Lt[T[SqlExpr]](quotedStr(a1), quotedStr(a2)).embed
+      case other =>
+        other.embed
+    }
+  }
 
   val alg: AlgebraM[PlannerError \/ ?, SqlExpr, String] = {
     case Null() => "null".right
@@ -76,7 +95,7 @@ object PostgresRenderQuery extends RenderQuery {
             s"->${midTail.map(e => s"'$e'").intercalate("->")}"
           else
             ""
-          s"""$key.$firstValStripped$midStr->'$last'""".right
+          s"""$key.$firstValStripped$midStr->$last""".right
         case _ => InternalError.fromMsg(s"Cannot process Refs($srcs)").left
       }
     case Obj(m) =>
@@ -137,7 +156,8 @@ object PostgresRenderQuery extends RenderQuery {
       val fromExpr = s" from ${from.v} ${from.alias.v}"
       s"(select ${selection.v}$fromExpr$filter$orderByStr)".right
     case Constant(Data.Str(v)) =>
-      v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right
+      val text = v.flatMap { case ''' => "''"; case iv => iv.toString }.self
+      s"'$text'".right
     case Constant(v) =>
       DataCodec.render(v) \/> NonRepresentableData(v)
     case Case(wt, e) =>
