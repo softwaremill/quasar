@@ -1,0 +1,21 @@
+{
+  "name": "filter on simple field equality postgres",
+
+  "backends": {
+  },
+
+  "data": "basic.data",
+
+  "query": "select * from basic where num = 4",
+
+  "predicate": "exactly",
+  "ignoreResultOrder": true,
+
+  "ignoredFields": ["_id"],
+
+  "ignoreFieldOrder": true,
+
+  "expected": [
+    {"name": {"first": "John", "last": "Smith"}, "num": 4}
+  ]
+}

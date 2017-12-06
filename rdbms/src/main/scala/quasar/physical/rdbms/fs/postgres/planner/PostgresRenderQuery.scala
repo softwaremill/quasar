@@ -107,6 +107,16 @@ object PostgresRenderQuery extends RenderQuery {
     case Or(a1, a2) =>
       s"($a1 or $a2)".right
     case Neg(str) => s"(-$str)".right
+    case Eq(a1, a2) =>
+      s"(($a1)::text = ($a2)::text)".right
+    case Lt(a1, a2) =>
+      s"(($a1)::text::numeric < ($a2)::text::numeric)".right
+    case Lte(a1, a2) =>
+      s"(($a1)::text::numeric <= ($a2)::text::numeric)".right
+    case Gt(a1, a2) =>
+      s"(($a1)::text::numeric > ($a2)::text::numeric)".right
+    case Gte(a1, a2) =>
+      s"(($a1)::text::numeric >= ($a2)::text::numeric)".right
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right
     case Select(selection, from, filterOpt, order) =>
@@ -142,7 +152,6 @@ object PostgresRenderQuery extends RenderQuery {
         s" order by $orderStr"
       else
        ""
-
       s"(select ${selection.v}$fromExpr$orderByStr)".right
     case Constant(Data.Str(v)) =>
       v.flatMap { case ''' => "''"; case iv => iv.toString }.self.right

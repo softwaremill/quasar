@@ -1,0 +1,22 @@
+{
+  "name": "filter on two levels of selection postgres",
+
+  "backends": {
+  },
+
+  "data": "filter.data",
+
+  "query": "select s.num, s.age from (select num, age, name from filter
+            where name.first = \"Bob\") as s where age > 34",
+
+  "predicate": "exactly",
+  "ignoreResultOrder": true,
+
+  "ignoredFields": [],
+
+  "ignoreFieldOrder": true,
+
+  "expected": [
+    {"num": 6, "age": 35}
+  ]
+}

@@ -50,6 +50,11 @@ trait SqlExprTraverse {
       case Mod(a1, a2)         => (f(a1) ⊛ f(a2))(Mod.apply)
       case Pow(a1, a2)         => (f(a1) ⊛ f(a2))(Pow.apply)
       case And(a1, a2)         => (f(a1) ⊛ f(a2))(And(_, _))
+      case Eq(a1, a2)          => (f(a1) ⊛ f(a2))(Eq(_, _))
+      case Lt(a1, a2)          => (f(a1) ⊛ f(a2))(Lt(_, _))
+      case Lte(a1, a2)          => (f(a1) ⊛ f(a2))(Lte(_, _))
+      case Gt(a1, a2)          => (f(a1) ⊛ f(a2))(Gt(_, _))
+      case Gte(a1, a2)          => (f(a1) ⊛ f(a2))(Gte(_, _))
       case Or(a1, a2)          => (f(a1) ⊛ f(a2))(Or(_, _))
       case Neg(v)              => f(v) ∘ Neg.apply
       case ToJson(v)           => f(v) ∘ ToJson.apply
