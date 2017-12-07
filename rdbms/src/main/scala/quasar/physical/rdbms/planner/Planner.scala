@@ -78,7 +78,8 @@ object Planner {
   implicit def equiJoinPlanner[
   T[_[_]]: BirecursiveT: ShowT,
   F[_]: Monad: NameGenerator: PlannerErrorME]
-  : Planner[T, F, EquiJoin[T, ?]] = unreachable("equijoin")
+  : Planner[T, F, EquiJoin[T, ?]] =
+    new EquiJoinPlanner[T, F]
 
   implicit def coproduct[T[_[_]], N[_], F[_], G[_]](
                                                      implicit F: Planner[T, N, F], G: Planner[T, N, G]
