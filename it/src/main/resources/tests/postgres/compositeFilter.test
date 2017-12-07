@@ -1,0 +1,22 @@
+{
+  "name": "complex filter postgres",
+
+  "backends": {
+  },
+
+  "data": "filter.data",
+
+  "query": "select num, age from filter where num % 4 = 0 or age - 13 < 0",
+
+  "predicate": "exactly",
+  "ignoreResultOrder": true,
+
+  "ignoredFields": [],
+
+  "ignoreFieldOrder": true,
+
+  "expected": [
+    {"num": 4, "age": 34},
+    {"num": 5, "age": 12}
+  ]
+}
