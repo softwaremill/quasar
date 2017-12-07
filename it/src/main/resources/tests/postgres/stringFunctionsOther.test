@@ -1,0 +1,25 @@
+{
+  "name": "other string functions postgres",
+
+  "backends": {
+  },
+
+  "data": "stringFunctionsOther.data",
+
+  "query": "select
+  substring(commaSeparated, 1, 5) as basicSubstring, substring(commaSeparated, 2, 3) as substringLim,
+  search(someText,\"fo.\", false) as searchCaseSensitive, search(someText, \"dog\", flag) as searchCaseInsensitive,
+  split(commaSeparated, \",\") as commaSplit
+   from stringFunctionsOther",
+
+  "predicate": "exactly",
+  "ignoreResultOrder": false,
+
+  "ignoredFields": [],
+
+  "ignoreFieldOrder": true,
+
+  "expected": [
+    {"basicSubstring": "a,b,c", "substringLim": ",b,", "searchCaseSensitive": false, "searchCaseInsensitive": true, "commaSplit": ["a","b","c"]}
+  ]
+}

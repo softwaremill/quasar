@@ -22,14 +22,14 @@ import quasar.Data
 import quasar.DataCodec
 import DataCodec.Precise.{DateKey, IntervalKey, TimeKey, TimestampKey}
 import quasar.Planner._
-import quasar.physical.rdbms.planner.sql.{SqlExpr => SQL}
+import quasar.physical.rdbms.planner.sql.{Search, StrLower, StrUpper, Substring, SplitStr, SqlExpr => SQL}
 import quasar.physical.rdbms.planner.sql.SqlExpr._
 import quasar.physical.rdbms.planner.sql.SqlExpr.Case._
 import quasar.qscript.{MapFuncsCore => MFC, _}
 import quasar.std.StdLib.string.{dateRegex, timeRegex, timestampRegex}
 import matryoshka._
 import matryoshka.implicits._
-import quasar.physical.rdbms.model.{BoolCol, IntCol, DecCol, StringCol}
+import quasar.physical.rdbms.model.{BoolCol, DecCol, IntCol, StringCol}
 
 import scalaz._
 import Scalaz._
@@ -123,16 +123,16 @@ class MapFuncCorePlanner[T[_[_]]: BirecursiveT: ShowT, F[_]:Applicative:PlannerE
     case MFC.Between(f1, f2, f3) =>  notImplemented("Between", this)
     case MFC.Cond(fCond, fThen, fElse) =>  notImplemented("Cond", this)
     case MFC.Within(f1, f2) =>  notImplemented("Within", this)
-    case MFC.Lower(f) =>  notImplemented("Lower", this)
-    case MFC.Upper(f) =>  notImplemented("Upper", this)
+    case MFC.Lower(f) =>  SQL.UnaryFunction(StrLower, f).embed.η[F]
+    case MFC.Upper(f) =>  SQL.UnaryFunction(StrUpper, f).embed.η[F]
     case MFC.Bool(f) =>  SQL.Coercion(BoolCol, f).embed.η[F]
     case MFC.Integer(f) =>  SQL.Coercion(IntCol, f).embed.η[F]
     case MFC.Decimal(f) =>  SQL.Coercion(DecCol, f).embed.η[F]
     case MFC.Null(f) =>  SQL.Null[T[SQL]].embed.η[F]
     case MFC.ToString(f) =>  SQL.Coercion(StringCol, f).embed.η[F]
-    case MFC.Search(fStr, fPattern, fInsen) => notImplemented("Search", this)
-    case MFC.Substring(fStr, fFrom, fCount) => notImplemented("Substring", this)
-    case MFC.Split(fStr, fDelim) => notImplemented("Split", this)
+    case MFC.Search(fStr, fPattern, fIsCaseInsensitive) => SQL.TernaryFunction(Search, fStr, fPattern, fIsCaseInsensitive).embed.η[F]
+    case MFC.Substring(fStr, fFrom, fCount) => SQL.TernaryFunction(Substring, fStr, fFrom, fCount).embed.η[F]
+    case MFC.Split(fStr, fDelim) => SQL.BinaryFunction(SplitStr, fStr, fDelim).embed.η[F]
     case MFC.MakeArray(f) =>  notImplemented("MakeArray", this)
     case MFC.MakeMap(key, value) =>
       key.project match {

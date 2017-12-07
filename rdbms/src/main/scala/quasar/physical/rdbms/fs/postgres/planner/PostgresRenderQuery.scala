@@ -24,14 +24,14 @@ import quasar.DataCodec.Precise.TimeKey
 import quasar.physical.rdbms.model._
 import quasar.physical.rdbms.fs.postgres._
 import quasar.physical.rdbms.planner.RenderQuery
-import quasar.physical.rdbms.planner.sql.SqlExpr
+import quasar.physical.rdbms.planner.sql._
 import quasar.physical.rdbms.planner.sql.SqlExpr.Select._
 import quasar.physical.rdbms.planner.sql.SqlExpr.Case._
 import quasar.Planner.InternalError
 import quasar.Planner.{NonRepresentableData, PlannerError}
-
 import matryoshka._
 import matryoshka.implicits._
+
 import scalaz._
 import Scalaz._
 
@@ -164,5 +164,20 @@ object PostgresRenderQuery extends RenderQuery {
       val wts = wt ∘ { case WhenThen(w, t) => s"when $w then $t" }
       s"(case ${wts.intercalate(" ")} else ${e.v} end)".right
     case Coercion(t, e) => s"($e)::${t.mapToStringName}".right
+    case UnaryFunction(fType, e) =>
+      val fName = fType match {
+        case StrLower => "lower"
+        case StrUpper => "upper"
+      }
+      s"$fName($e)".right
+    case BinaryFunction(fType, a1, a2) =>
+      val fName = fType match {
+        case SplitStr => "regexp_split_to_array"
+      }
+      s"$fName($a1, $a2)".right
+    case TernaryFunction(fType, a1, a2, a3) => (fType match {
+      case Search => s"(case when $a3 then $a1 ~* $a2 else $a1 ~ $a2 end)"
+      case Substring => s"substring($a1 from $a2 for $a3)"
+    }).right
   }
 }

@@ -74,6 +74,10 @@ object SqlExpr extends SqlExprInstances {
 
   final case class Constant[T](data: Data) extends SqlExpr[T]
 
+  final case class UnaryFunction[T](t: UnaryFunctionType, e: T) extends SqlExpr[T]
+  final case class BinaryFunction[T](t: BinaryFunctionType, a1: T, a2: T) extends SqlExpr[T]
+  final case class TernaryFunction[T](t: TernaryFunctionType, a1: T, a2: T, a3: T) extends SqlExpr[T]
+
   final case class RegexMatches[T](a1: T, a2: T) extends SqlExpr[T]
   object Select {
     final case class Filter[T](v: T)
@@ -101,3 +105,14 @@ object SqlExpr extends SqlExprInstances {
   }
 
 }
+
+sealed trait UnaryFunctionType
+case object StrLower extends UnaryFunctionType
+case object StrUpper extends UnaryFunctionType
+
+sealed trait BinaryFunctionType
+case object SplitStr extends BinaryFunctionType
+
+sealed trait TernaryFunctionType
+case object Substring extends TernaryFunctionType
+case object Search extends TernaryFunctionType
