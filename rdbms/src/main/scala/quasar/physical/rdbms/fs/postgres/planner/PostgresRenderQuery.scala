@@ -95,7 +95,7 @@ object PostgresRenderQuery extends RenderQuery {
           val firstValStripped = ~mid.headOption.map(_.stripPrefix("'").stripSuffix("'"))
           val midTail = mid.drop(1)
           val midStr = if (midTail.nonEmpty)
-            s"->${midTail.map(e => s"'$e'").intercalate("->")}"
+            s"->${midTail.map(e => s"$e").intercalate("->")}"
           else
             ""
           s"""$key.$firstValStripped$midStr->$last""".right
