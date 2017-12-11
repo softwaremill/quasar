@@ -34,7 +34,9 @@ trait PostgresCreate extends RdbmsCreate {
       if (s.isRoot)
         ().point[ConnectionIO]
       else
-        (fr"CREATE SCHEMA IF NOT EXISTS" ++ Fragment.const(s.shows)).update.run.void
+      fr"LOCK TABLE pg_catalog.pg_namespace".update.run *>
+      (fr"CREATE SCHEMA IF NOT EXISTS" ++ Fragment.const(s.shows)).update.run.void
+
     }.void
   }
 
