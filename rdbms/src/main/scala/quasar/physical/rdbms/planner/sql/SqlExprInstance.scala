@@ -32,7 +32,9 @@ trait SqlExprTraverse {
         implicit G: Applicative[G]
     ): G[SqlExpr[B]] = fa match {
       case Null()              => G.point(Null())
+      case Unreferenced()      => G.point(Unreferenced())
       case Obj(m)              => m.traverse(_.bitraverse(f, f)) ∘ (l => Obj(l))
+      case Arr(l)                  => l.traverse(f) ∘ (Arr(_))
       case Constant(d)         => G.point(Constant(d))
       case Id(str)             => G.point(Id(str))
       case RegexMatches(a1, a2) => (f(a1) ⊛ f(a2))(RegexMatches(_, _))
@@ -60,16 +62,18 @@ trait SqlExprTraverse {
       case ToJson(v)           => f(v) ∘ ToJson.apply
       case WithIds(v)          => f(v) ∘ WithIds.apply
 
-      case Select(selection, from, filterOpt, order) =>
+      case Select(selection, from, jn, filterOpt, order) =>
         val newOrder = order.traverse(o => f(o.v).map(newV => OrderBy(newV, o.sortDir)))
         val sel = f(selection.v) ∘ (i => Selection(i, selection.alias ∘ (a => Id[B](a.v))))
         val alias = f(from.v).map(b => From(b, Id[B](from.alias.v)))
+        val join = jn.traverse(i => f(i.pred) ∘ (LookupJoin(Id[B](i.id.v), i.alias ∘ (a => Id[B](a.v)), _, i.joinType)))
 
         (sel ⊛
           alias ⊛
+          join ⊛
           filterOpt.traverse(i => f(i.v) ∘ Filter.apply) ⊛
           newOrder)(
-          Select(_, _, _, _)
+          Select(_, _, _, _, _)
         )
       case Case(wt, Else(e)) =>
         (wt.traverse { case WhenThen(w, t) => (f(w) ⊛ f(t))(WhenThen(_, _)) } ⊛

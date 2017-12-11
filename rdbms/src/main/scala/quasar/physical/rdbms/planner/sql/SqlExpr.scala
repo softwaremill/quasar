@@ -18,11 +18,11 @@ package quasar.physical.rdbms.planner.sql
 
 import slamdata.Predef._
 import quasar.Data
-import quasar.common.SortDir
+import quasar.common.{JoinType, SortDir}
 import quasar.physical.rdbms.model.ColumnType
 import quasar.physical.rdbms.planner.sql.SqlExpr.Case.{Else, WhenThen}
 
-import scalaz.{NonEmptyList, OneAnd}
+import scalaz.{NonEmptyList, OneAnd, \/}
 import scalaz.NonEmptyList._
 import scalaz.OneAnd._
 
@@ -37,8 +37,11 @@ object SqlExpr extends SqlExprInstances {
       Refs(other.elems ++ this.elems)
     }
   }
+  final case class Unreferenced[T]() extends SqlExpr[T]
+
   final case class Null[T]() extends SqlExpr[T]
   final case class Obj[T](m: List[(T, T)]) extends SqlExpr[T]
+  final case class Arr[T](l: List[T]) extends SqlExpr[T]
   final case class IsNotNull[T](a1: T) extends SqlExpr[T]
   final case class ConcatStr[T](a1: T, a2: T) extends SqlExpr[T]
   final case class Time[T](a1: T) extends SqlExpr[T]
@@ -49,6 +52,7 @@ object SqlExpr extends SqlExprInstances {
 
   final case class Select[T](selection: Selection[T],
                              from: From[T],
+                             join: Option[LookupJoin[T]],
                              filter: Option[Filter[T]],
                              orderBy: List[OrderBy[T]])
       extends SqlExpr[T]
@@ -76,6 +80,8 @@ object SqlExpr extends SqlExprInstances {
 
   final case class RegexMatches[T](a1: T, a2: T) extends SqlExpr[T]
   object Select {
+    type LookupJoinType = JoinType.LeftOuter.type \/ JoinType.Inner.type
+    final case class LookupJoin[T](id: Id[T], alias: Option[Id[T]], pred: T, joinType: LookupJoinType)
     final case class Filter[T](v: T)
     final case class RowIds[T]() extends SqlExpr[T]
     final case class AllCols[T]() extends SqlExpr[T]

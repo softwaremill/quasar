@@ -21,6 +21,7 @@ import quasar.common.SortDir.{Ascending, Descending}
 import quasar.Data
 import quasar.DataCodec
 import quasar.DataCodec.Precise.TimeKey
+import quasar.fp.ski._
 import quasar.physical.rdbms.model._
 import quasar.physical.rdbms.fs.postgres._
 import quasar.physical.rdbms.planner.RenderQuery
@@ -77,6 +78,8 @@ object PostgresRenderQuery extends RenderQuery {
 
   val alg: AlgebraM[PlannerError \/ ?, SqlExpr, String] = {
     case Null() => "null".right
+    case Unreferenced() =>
+      s"unreferenced".right
     case SqlExpr.Id(v) =>
       s"""$v""".right
     case Table(v) =>
@@ -102,6 +105,8 @@ object PostgresRenderQuery extends RenderQuery {
       buildJson(m.map {
         case (k, v) => s"'$k', $v"
       }.mkString(",")).right
+    case Arr(l) =>
+      l.mkString("[", ", ", "]").right
     case RegexMatches(str, pattern) =>
       s"($str ~ '$pattern')".right
     case IsNotNull(expr) =>
@@ -111,7 +116,7 @@ object PostgresRenderQuery extends RenderQuery {
     case IfNull(a) =>
       s"coalesce(${a.intercalate(", ")})".right
     case ExprWithAlias(expr: String, alias: String) =>
-      (if (expr === alias) s"$expr" else s"""$expr as "$alias"""").right
+      (if (expr === alias) s"$expr" else s"""$expr as $alias""").right
     case ExprPair(expr1, expr2) =>
       s"$expr1, $expr2".right
     case ConcatStr(str1, str2)  =>
@@ -138,8 +143,12 @@ object PostgresRenderQuery extends RenderQuery {
       s"(($a1)::text::numeric >= ($a2)::text::numeric)".right
     case WithIds(str)    => s"(row_number() over(), $str)".right
     case RowIds()        => "row_number() over()".right
-    case Select(selection, from, filterOpt, order) =>
+    case Select(selection, from, jn, filterOpt, order) =>
       val filter = ~(filterOpt ∘ (f => s" where ${f.v}"))
+      val join        = ~(jn ∘ (j =>
+        j.joinType.fold(κ(" left outer"), κ("")) ⊹ s" join ${j.id.v}" ⊹ rowAlias(j.alias) ⊹
+          " on " ⊹ j.pred))
+
       val orderStr = order.map { o =>
         val dirStr = o.sortDir match {
           case Ascending => "asc"
@@ -154,7 +163,7 @@ object PostgresRenderQuery extends RenderQuery {
         ""
 
       val fromExpr = s" from ${from.v} ${from.alias.v}"
-      s"(select ${selection.v}$fromExpr$filter$orderByStr)".right
+      s"(select ${selection.v}$fromExpr$join$filter$orderByStr)".right
     case Constant(Data.Str(v)) =>
       val text = v.flatMap { case ''' => "''"; case iv => iv.toString }.self
       s"'$text'".right

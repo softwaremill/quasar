@@ -64,6 +64,7 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
         Select(
           Selection(selection, none),
           From(src, fromAlias),
+          join = none,
           filter = none,
           orderBy = nil
         ).embed
@@ -85,6 +86,7 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
           Select(
             Selection(*, none),
             From(src, fromAlias),
+            join = none,
             filter = none,
             orderBy = bucketExprs ++ orderByExprs.toList
           ).embed
@@ -92,7 +94,7 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
 
     case qscript.Filter(src, f) =>
       src.project match {
-        case s@Select(_, From(_, initialFromAlias), initialFilter, _) =>
+        case s@Select(_, From(_, initialFromAlias), _, initialFilter, _) =>
           val injectedFilterExpr = processFreeMap(f, initialFromAlias)
           injectedFilterExpr.map { fe =>
             val finalFilterExpr = initialFilter.map(i => And[T[SqlExpr]](i.v, fe).embed).getOrElse(fe)
@@ -106,11 +108,14 @@ F[_]: Monad: NameGenerator: PlannerErrorME](
           Select(
             Selection(*, none),
             From(src, fromAlias),
+            join = none,
             Some(Filter(filterExp)),
             orderBy = nil
           ).embed
       }
     }
+    case qscript.Unreferenced() =>
+      Unreferenced[T[SqlExpr]]().embed.η[F]
 
     case other =>
       PlannerErrorME[F].raiseError(
