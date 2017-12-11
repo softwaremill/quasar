@@ -95,7 +95,7 @@ class PlannerSpec extends Qspec with SqlExprSupport {
   def select[T](selection: Selection[T],
                 from: From[T],
                 filter: Option[Filter[T]] = None) =
-    Select(selection, from, filter, nil)
+    Select(selection, from, join = None, filter, orderBy = nil)
 
   "Shifted read" should {
     type SR[A] = Const[ShiftedRead[AFile], A]
@@ -106,7 +106,7 @@ class PlannerSpec extends Qspec with SqlExprSupport {
           select(
             selection(*, alias = None),
             From(Fix(Select(selection(*, alias = Some(id(1))),
-              fromTable("db.foo", id0), orderBy = Nil, filter = None)),
+              fromTable("db.foo", id0), orderBy = Nil, join = None, filter = None)),
               alias = id(2)))
         })
     }
@@ -128,21 +128,21 @@ class PlannerSpec extends Qspec with SqlExprSupport {
     "build plan including ids" in {
       expectShiftedReadRepr(forIdStatus = IncludeId, expectedRepr = {
         Select(selection(Fix(WithIds(*)), alias = Some(id(1))),
-          fromTable("db.foo", id0), orderBy = Nil, filter = None)
+          fromTable("db.foo", id0), orderBy = Nil, join = None, filter = None)
       })
     }
 
     "build plan only for ids" in {
       expectShiftedReadRepr(forIdStatus = IdOnly, expectedRepr = {
         Select(selection(Fix(RowIds()), alias = Some(id(1))),
-          fromTable("db.foo", id0), orderBy = Nil, filter = None)
+          fromTable("db.foo", id0), orderBy = Nil, join = None, filter = None)
       })
     }
 
     "build plan only for excluded ids" in {
       expectShiftedReadRepr(forIdStatus = ExcludeId, expectedRepr = {
         Select(selection(*, alias = Some(id(1))),
-          fromTable("db.foo", id0), orderBy = Nil, filter = None)
+          fromTable("db.foo", id0), orderBy = Nil, join = None, filter = None)
       })
     }
   }
@@ -151,17 +151,17 @@ class PlannerSpec extends Qspec with SqlExprSupport {
 
     "represent addition" in {
       qs(sqlE"select a+b from foo") must
-        beSql("select row_to_json(row) from (select ((_2.a)::text::numeric + (_2.b)::text::numeric) from (select * from db.foo) _2) row")
+        beSql("select row_to_json(row) from (select ((_2.a)::text::numeric + (_2.b)::text::numeric) from (select * from db.foo _0) _2) row")
     }
 
     "represent single-level reference" in {
       qs(sqlE"select a from foo") must
-        beSql("select row_to_json(row) from (select _2.a from (select * from db.foo) _2) row")
+        beSql("select row_to_json(row) from (select _2.a from (select * from db.foo _0) _2) row")
     }
 
     "represent nested refs" in {
       qs(sqlE"select aa.bb.c.d from foo") must
-        beSql("select row_to_json(row) from (select _2.aa->'bb'->'c'->'d' from (select * from db.foo) _2) row")
+        beSql("select row_to_json(row) from (select _2.aa->'bb'->'c'->'d' from (select * from db.foo _0) _2) row")
     }
   }
 
@@ -169,7 +169,7 @@ class PlannerSpec extends Qspec with SqlExprSupport {
 
     "represent simple ordering" in {
       qs(sqlE"select name, surname from foo order by name") must
-        beSql("""select row_to_json(row) from (select * from (select _2.name as "name", _2.surname as "surname" from (select * from db.foo) _2) _3 order by _3.name asc) row""")
+        beSql("""select row_to_json(row) from (select * from (select _2.name as name, _2.surname as surname from (select * from db.foo _0) _2) _3 order by _3.name asc) row""")
     }
   }
 }
