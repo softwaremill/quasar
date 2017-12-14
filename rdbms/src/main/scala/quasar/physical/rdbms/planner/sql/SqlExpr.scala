@@ -32,11 +32,8 @@ object SqlExpr extends SqlExprInstances {
 
   import Select._
   final case class Id[T](v: String) extends SqlExpr[T]
-  final case class Refs[T](elems: Vector[T]) extends SqlExpr[T] {
-    def +(other: Refs[T]): Refs[T] = {
-      Refs(other.elems ++ this.elems)
-    }
-  }
+  final case class Refs[T](elems: Vector[T]) extends SqlExpr[T]
+
   final case class Unreferenced[T]() extends SqlExpr[T]
   final case class Null[T]() extends SqlExpr[T]
   final case class Obj[T](m: List[(T, T)]) extends SqlExpr[T]
@@ -62,12 +59,15 @@ object SqlExpr extends SqlExprInstances {
   final case class Table[T](name: String) extends SqlExpr[T]
 
   final case class NumericOp[T](op: String, left: T, right: T) extends SqlExpr[T]
-  final case class Mod[T](a1: T, a2: T) extends SqlExpr[T]
-  final case class Pow[T](a1: T, a2: T) extends SqlExpr[T]
-  final case class Neg[T](a1: T) extends SqlExpr[T]
 
-  final case class And[T](a1: T, a2: T) extends SqlExpr[T]
-  final case class Or[T](a1: T, a2: T) extends SqlExpr[T]
+  sealed trait ArithmeticOp
+  final case class Mod[T](a1: T, a2: T) extends SqlExpr[T] with ArithmeticOp
+  final case class Pow[T](a1: T, a2: T) extends SqlExpr[T] with ArithmeticOp
+  final case class Neg[T](a1: T) extends SqlExpr[T] with ArithmeticOp
+
+  sealed trait BoolOp
+  final case class And[T](a1: T, a2: T) extends SqlExpr[T] with BoolOp
+  final case class Or[T](a1: T, a2: T) extends SqlExpr[T] with BoolOp
 
   final case class Coercion[T](t: ColumnType, e: T) extends SqlExpr[T]
 
