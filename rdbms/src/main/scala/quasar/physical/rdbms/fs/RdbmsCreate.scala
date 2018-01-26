@@ -24,6 +24,7 @@ import doobie.free.connection.ConnectionIO
 
 trait RdbmsCreate {
 
+  def ensureSchemaParents(schema: Schema): ConnectionIO[Unit]
   def createSchema(schema: Schema): ConnectionIO[Unit]
   def createTable(tablePath: TablePath, model: TableModel): ConnectionIO[Unit]
   def alterTable(tablePath: TablePath, cols: Set[AlterColumn]): ConnectionIO[Unit]

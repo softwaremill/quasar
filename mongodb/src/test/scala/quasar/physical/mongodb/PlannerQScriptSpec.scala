@@ -588,6 +588,23 @@ class PlannerQScriptSpec extends
                 $field("codes"),
                 $literal(Bson.Undefined)))),
           $unwind(DocField("f"), None, None),
+          // These matchers are redundant, but that's an artifact of
+          // the redundant QScript above.
+          $match(Selector.Or(
+            Selector.And(
+              Selector.Doc(
+                BsonField.Name("s") \ BsonField.Name("state") ->
+                  Selector.Eq(Bson.Text("CO"))),
+              Selector.Doc(
+                BsonField.Name("s") \ BsonField.Name("city") ->
+                  Selector.In(Bson.Arr(List(Bson.Text("BOULDER"), Bson.Text("AURORA")))))),
+            Selector.And(
+              Selector.Doc(
+                BsonField.Name("s") \ BsonField.Name("state") ->
+                  Selector.Eq(Bson.Text("CO"))),
+              Selector.Doc(
+                BsonField.Name("s") \ BsonField.Name("city") ->
+                  Selector.In(Bson.Arr(List(Bson.Text("BOULDER"), Bson.Text("AURORA")))))))),
           $project(reshape(
             "codes" -> $field("f"),
             "first_name" -> $field("s", "first_name"),

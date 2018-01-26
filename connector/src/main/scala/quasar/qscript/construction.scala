@@ -142,10 +142,7 @@ object construction {
     def MakeMapS[A](key: String, src: FreeMapA[T, A]): FreeMapA[T, A] =
       MakeMapJ(json.str(key), src)
     def StaticMap[A](pairs: (T[EJson], FreeMapA[T, A])*): FreeMapA[T, A] =
-      IList(pairs: _*).toNel.fold(Constant[A](json.map(Nil))) {
-        case NonEmptyList((hk, hv), t) =>
-          t.foldLeft(MakeMapJ(hk, hv)) { case (b, (k, v)) => ConcatMaps(b, MakeMapJ(k, v)) }
-      }
+      MapFuncCore.StaticMap(pairs.toList)
     def StaticMapS[A](pairs: (String, FreeMapA[T, A])*): FreeMapA[T, A] =
       StaticMap(pairs.map(_.leftMap(json.str(_))): _*)
     def StaticMapF[A, K](keys: K*)(f: K => FreeMapA[T, A], fk: K => T[EJson]): FreeMapA[T, A] =

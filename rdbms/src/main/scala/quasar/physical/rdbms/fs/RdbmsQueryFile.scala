@@ -41,7 +41,7 @@ import scalaz._
 import Scalaz._
 import scalaz.stream.Process._
 
-trait RdbmsQueryFile extends ManagedQueryFile[DbDataStream] {
+trait RdbmsQueryFile extends ManagedQueryFile[DbDataStream] with RdbmsMove {
   self: Rdbms =>
 
   import QueryFile._
@@ -69,15 +69,15 @@ trait RdbmsQueryFile extends ManagedQueryFile[DbDataStream] {
     }
 
     override def executePlan(repr: Fix[SqlExpr], out: AFile): Backend[Unit] = {
+      val tablePath = TablePath.create(out)
       ME.unattempt(renderQuery.asString(repr)
         .leftMap(QScriptPlanningFailed.apply)
         .traverse { q =>
-          val tablePath = TablePath.create(out)
           val cmd = Fragment.const("CREATE TABLE") ++
           Fragment.const(tablePath.shows) ++
           Fragment.const("AS") ++
           Fragment.const(q)
-        cmd.update.run.liftB
+          (dropTableIfExists(tablePath) *> cmd.update.run).liftB
       }).void
     }
 

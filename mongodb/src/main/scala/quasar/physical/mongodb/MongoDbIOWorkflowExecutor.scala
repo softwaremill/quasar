@@ -116,6 +116,9 @@ private[mongodb] final class MongoDbIOWorkflowExecutor
     bcIO flatMap { bc =>
       MongoDbIO.async((bc: MongoIterable[_ <: BsonValue]).widen[BsonValue].batchCursor)
     }
+
+  protected def renameCollection(src: Collection, dst: Collection) =
+    MongoDbIO.rename(src, dst, RenameSemantics.FailIfExists)
 }
 
 private[mongodb] object MongoDbIOWorkflowExecutor {

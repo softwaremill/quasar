@@ -42,7 +42,7 @@ object common {
     }
 
     def lastDirName: DirName = {
-      DirName(lastDirNameStr)
+      DirName(TablePath.unescapeSchemaName(lastDirNameStr))
     }
 
     def isDirectChildOf(supposedParent: Schema): Boolean = {
@@ -76,12 +76,21 @@ object common {
     val Separator = "__c_"
     val SeparatorRegex = "__c_"
 
+    def escapeSchemaName(dirStr: String): String = {
+      dirStr.replace(".", "$d$")
+    }
+
+    def unescapeSchemaName(dirStr: String): String = {
+      dirStr.replace("$d$", ".")
+    }
+
     def dirToSchema(dir: ADir): Schema = {
       Schema(
         Path
           .flatten(None, None, None, Some(_), Some(_), dir)
           .toIList
           .unite
+          .map(escapeSchemaName)
           .intercalate(TablePath.Separator))
     }
 

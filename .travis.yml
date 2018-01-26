@@ -120,6 +120,11 @@ jobs:
       env:
       script:
         - set -e
+
+        # workaround for the fact that travis caching isn't working. when it starts working again, remove this
+        - ./sbt -DisIsolatedEnv=${ISOLATED_ENV:=false} ++$TRAVIS_SCALA_VERSION foundation/test:compile
+        - travis_wait 40 ./sbt -DisIsolatedEnv=${ISOLATED_ENV:=false} ++$TRAVIS_SCALA_VERSION connector/test:compile
+
         - './sbt -DisIsolatedEnv=${ISOLATED_ENV:=false} ++$TRAVIS_SCALA_VERSION doc web/assembly'
 
         - scripts/testJar

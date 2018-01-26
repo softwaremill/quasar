@@ -82,6 +82,8 @@ private[mongodb] abstract class WorkflowExecutor[F[_]: Monad, C] {
     */
   protected def mapReduceCursor(src: Collection, mr: MapReduce): F[C]
 
+  protected def renameCollection(src: Collection, dst: Collection): F[Unit]
+
   //--- Derived Methods ---
 
   type G0[A]  = StateT[F, Long, A]
@@ -133,7 +135,7 @@ private[mongodb] abstract class WorkflowExecutor[F[_]: Monad, C] {
   def execute(workflow: Crystallized[WorkflowF], dst: Collection): M[Unit] =
     execute0(task(workflow), dst)
       .flatMap(coll =>
-        asM(aggregate(coll, List(PipelineOp($OutF((), dst.collection).shapePreserving)))
+        asM(aggregateOut(coll, Nil, dst)
           .whenM(coll ≠ dst)).liftM[TempsT])
       .run(Set())
       .flatMap { case (tmps, _) => tmps traverse_ (c => asM(drop(c))) }
@@ -196,6 +198,16 @@ private[mongodb] abstract class WorkflowExecutor[F[_]: Monad, C] {
     }
   }
 
+  /**
+   * An extension of aggregate that allows writing to `outColl` of which the
+   * database is different than the `src.database`
+   */
+  def aggregateOut(src: Collection, pipeline: Pipeline, out: Collection): F[Unit] =
+    aggregate(src, pipeline ::: List(PipelineOp($OutF((), out.collection).shapePreserving))) *>
+      (if (src.database ≠ out.database)
+         renameCollection(src.copy(collection = out.collection), out)
+       else ().point[F])
+
   @SuppressWarnings(Array("org.wartremover.warts.Recursion"))
   private def execute0(wt: WorkflowTask, out: Collection)
     (implicit ev: WorkflowOpCoreF :<: WorkflowF)
@@ -232,8 +244,7 @@ private[mongodb] abstract class WorkflowExecutor[F[_]: Monad, C] {
         for {
           tmp <- tempColl(out.database)
           src <- execute0(source, tmp)
-          _   <- asM(aggregate(src, pipeline ::: List(PipelineOp($OutF((), out.collection).shapePreserving))))
-                   .liftM[TempsT]
+          _   <- asM(aggregateOut(src, pipeline, out)).liftM[TempsT]
         } yield out
 
       case MapReduceTask(source, mr, oa) =>

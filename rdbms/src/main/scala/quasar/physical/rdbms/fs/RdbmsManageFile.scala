@@ -94,6 +94,7 @@ trait RdbmsManageFile
         val dbCalls = for {
           dstSchemaExists <- schemaExists(dstSchema)
           _ <- dstSchemaExists.whenM(dropSchema(dstSchema))
+          _ <- ensureSchemaParents(dstSchema)
           _ <- renameSchema(srcSchema, dstSchema)
         } yield ()
 
