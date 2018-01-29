@@ -28,6 +28,14 @@ import Scalaz._
 object common {
   final case class Config(connInfo: JdbcConnectionInfo)
 
+  def escapeFileName(dirStr: String): String = {
+    dirStr.replace(".", "_d_").replace(" ", "_s_")
+  }
+
+  def unescapeFileName(dirStr: String): String = {
+    dirStr.replace("_d_", ".").replace("_s_", " ")
+  }
+
   final case class Schema(name: String) {
 
     def isRoot: Boolean = name.isEmpty
@@ -42,7 +50,7 @@ object common {
     }
 
     def lastDirName: DirName = {
-      DirName(TablePath.unescapeSchemaName(lastDirNameStr))
+      DirName(unescapeFileName(lastDirNameStr))
     }
 
     def isDirectChildOf(supposedParent: Schema): Boolean = {
@@ -66,9 +74,12 @@ object common {
     }
   }
 
-  implicit val showSchema: Show[Schema] = Show.shows(_.name.toLowerCase)
+  implicit val showSchema: Show[Schema] = Show.shows(_.name)
 
-  final case class TableName(name: String) extends AnyVal
+  final case class TableName(name: String) extends AnyVal {
+    def displayName: String = unescapeFileName(name)
+  }
+
   final case class TablePath(schema: Schema, table: TableName)
 
   object TablePath {
@@ -76,21 +87,13 @@ object common {
     val Separator = "__c_"
     val SeparatorRegex = "__c_"
 
-    def escapeSchemaName(dirStr: String): String = {
-      dirStr.replace(".", "$d$")
-    }
-
-    def unescapeSchemaName(dirStr: String): String = {
-      dirStr.replace("$d$", ".")
-    }
-
     def dirToSchema(dir: ADir): Schema = {
       Schema(
         Path
           .flatten(None, None, None, Some(_), Some(_), dir)
           .toIList
           .unite
-          .map(escapeSchemaName)
+          .map(escapeFileName)
           .intercalate(TablePath.Separator))
     }
 
@@ -98,14 +101,14 @@ object common {
       val filename = Path.fileName(file).value
       val schema =
         Path.parentDir(file).map(dirToSchema).getOrElse(Schema(""))
-      new TablePath(schema, TableName(filename))
+      new TablePath(schema, TableName(escapeFileName(filename)))
     }
 
     implicit val showTableName: Show[TableName] =
-      Show.shows(_.name.toLowerCase)
+      Show.shows(_.name)
 
     implicit val showPath: Show[TablePath] = Show.shows { tp =>
-      s"${tp.schema.shows}.${tp.table.shows}"
+      s""""${tp.schema.shows}"."${tp.table.shows}""""
     }
   }
 }

@@ -35,7 +35,7 @@ trait PostgresCreate extends RdbmsCreate {
         ().point[ConnectionIO]
       else
         fr"LOCK TABLE pg_catalog.pg_namespace".update.run *>
-          (fr"CREATE SCHEMA IF NOT EXISTS" ++ Fragment.const(s.shows)).update.run.void).void
+          (fr"CREATE SCHEMA IF NOT EXISTS" ++ Fragment.const(s""""${s.shows}"""")).update.run.void).void
   }
 
   override def ensureSchemaParents(schema: Schema): ConnectionIO[Unit] = {

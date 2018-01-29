@@ -27,7 +27,7 @@ import quasar.fs.PathError._
 import quasar.fs.{FileSystemErrT, QueryFile}
 import quasar.physical.rdbms.Rdbms
 import quasar.physical.rdbms.common._
-import quasar.physical.rdbms.common.TablePath.showTableName
+//import quasar.physical.rdbms.common.TablePath.showTableName
 import quasar.connector.ManagedQueryFile
 import quasar.physical.rdbms.model.DbDataStream
 import quasar.physical.rdbms.planner.RenderQuery
@@ -115,7 +115,7 @@ trait RdbmsQueryFile extends ManagedQueryFile[DbDataStream] with RdbmsMove {
         childSchemas <- findChildSchemas(schema)
         childTables <- findChildTables(schema)
         childDirs = childSchemas.filter(_.isDirectChildOf(schema)).map(d => -\/(d.lastDirName)).toSet
-        childFiles = childTables.map(t => \/-(Path.FileName(t.shows))).toSet
+        childFiles = childTables.map(t => \/-(Path.FileName(t.displayName))).toSet
       }
         yield childDirs ++ childFiles).liftB
     }
