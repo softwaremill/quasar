@@ -35,13 +35,11 @@ trait PostgresInsert extends RdbmsInsert {
       row: Data)(implicit formatter: DataFormatter): FileSystemError \/ Map[String, String] = {
     row match {
       case Data.Obj(fields) =>
-        fields.toVector
-          .filter(f => cols.exists(_.name === f._1))
-          .map {
+        fields
+          .flatMap {
             case (n, v) =>
-              (n, formatter(n, v))
-          }
-          .toMap
+              cols.find(_.name === n).toList.map(col => (n, formatter(n, v, col.tpe)))
+            }
           .right
       case _ =>
         FileSystemError
@@ -66,7 +64,8 @@ trait PostgresInsert extends RdbmsInsert {
 
         val colValsFragment =
               fr"values (" ++
-          colMap.values.toList
+          colMap
+            .values.toList
             .map(v => Fragment.const(v))
             .intercalate(fr",") ++ fr")"
 

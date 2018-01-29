@@ -58,7 +58,6 @@ sealed trait AlterColumn
 final case class AddColumn(name: String, tpe: ColumnType) extends AlterColumn
 final case class ModifyColumn(name: String, tpe: ColumnType) extends AlterColumn
 
-
 object ColumnarTable {
   import TableModel._
 
@@ -117,7 +116,11 @@ object TableModel {
       Set[ColumnType](IntCol, StringCol) -> StringCol,
       Set[ColumnType](BoolCol, StringCol) -> StringCol,
       Set[ColumnType](BoolCol, DecCol) -> StringCol,
-      Set[ColumnType](BoolCol, IntCol) -> StringCol
+      Set[ColumnType](BoolCol, IntCol) -> StringCol,
+      Set[ColumnType](StringCol, JsonCol) -> JsonCol,
+      Set[ColumnType](BoolCol, JsonCol) -> JsonCol,
+      Set[ColumnType](IntCol, JsonCol) -> JsonCol,
+      Set[ColumnType](DecCol, JsonCol) -> JsonCol,
     )
 
     override def append(s1: TableModel, s2: => TableModel): TableModel = {

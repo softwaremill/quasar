@@ -58,19 +58,22 @@ package object postgres {
 
   val tsFormatter: DateTimeFormatter = DateTimeFormatter.ISO_INSTANT
 
-  implicit val dataFormatter: DataFormatter = DataFormatter((n, v) =>
-    v match {
-      case Data.Obj(_) | Data.Arr(_) =>
+  implicit val dataFormatter: DataFormatter = DataFormatter((n, v, t) =>
+    (v, t) match {
+      case (Data.Obj(_), _) | (Data.Arr(_), _) =>
         "'" + DataCodec.render(escapeData(v)).getOrElse("{}") + "'"
-      case Data.Int(num) => s"$num"
-      case Data.Str(txt) => s"'${escapeStr(txt)}'"
-      case Data.Dec(num) => s"$num"
-      case Data.Bool(bool) => s"$bool"
-      case Data.Timestamp(i) => s"""'{"$TimestampKey": "${tsFormatter.format(i)}"}'"""
-      case Data.Date(dt) => s"""'{"$DateKey": "${tsFormatter.format(dt)}"}'"""
-      case Data.Time(t) => s"""'{"$TimeKey": "${DataCodec.timeFormatter.format(t)}"}'"""
-      case Data.Id(oid) => s"""'{"$IdKey": "$oid"}'"""
-      case other => s"""'{"$n": "unsupported ($other)"}'""" // TODO
+      case (Data.Int(num), JsonCol) => s"'[$num]'"
+      case (Data.Str(txt), JsonCol) => s"""'["${escapeStr(txt)}"]'"""
+      case (Data.Dec(num), JsonCol) => s"'[$num]'"
+      case (Data.Bool(bool), JsonCol) => s"'[$bool]'"
+      case (Data.Int(num), _) => s"$num"
+      case (Data.Str(txt), _) => s"'${escapeStr(txt)}'"
+      case (Data.Dec(num), _) => s"$num"
+      case (Data.Bool(bool), _) => s"$bool"
+      case (Data.Timestamp(i), _) => s"""'{"$TimestampKey": "${tsFormatter.format(i)}"}'"""
+      case (Data.Date(dt), _) => s"""'{"$DateKey": "${tsFormatter.format(dt)}"}'"""
+      case (Data.Time(t), _) => s"""'{"$TimeKey": "${DataCodec.timeFormatter.format(t)}"}'"""
+      case (Data.Id(oid), _) => s"""'{"$IdKey": "$oid"}'"""
+      case (other, _) => s"""'{"$n": "unsupported ($other)"}'""" // TODO
     })
-
 }

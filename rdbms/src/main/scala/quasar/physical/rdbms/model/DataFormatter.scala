@@ -21,14 +21,14 @@ import quasar.Data
 
 trait DataFormatter {
 
-  def apply(n: String, d: Data): String
+  def apply(n: String, d: Data, t: ColumnType): String
 
 }
 
 object DataFormatter {
 
-  def apply(f: (String, Data) => String): DataFormatter = new DataFormatter {
-    def apply(n: String, d: Data) = f(n, d)
+  def apply(f: (String, Data, ColumnType) => String): DataFormatter = new DataFormatter {
+    def apply(n: String, d: Data, t: ColumnType) = f(n, d, t)
   }
 
 }
