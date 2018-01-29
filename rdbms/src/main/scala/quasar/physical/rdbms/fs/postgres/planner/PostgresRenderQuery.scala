@@ -107,6 +107,16 @@ object PostgresRenderQuery extends RenderQuery {
     }
   }
 
+  def jsonb[T[_[_]]: BirecursiveT](pair: (T[SqlExpr], String)): String = {
+    val (expr, str) = pair
+    expr.project match {
+      case Constant(Data.Obj(_)) =>
+        str
+      case _ =>
+        s"($str)::jsonb"
+    }
+  }
+
   def bool[T[_[_]]: BirecursiveT](pair: (T[SqlExpr], String)): String = {
       val (expr, str) = pair
       expr.project match {
@@ -130,6 +140,20 @@ object PostgresRenderQuery extends RenderQuery {
   object BoolExpr {
     def unapply[T[_[_]]: BirecursiveT](pair: (T[SqlExpr], String)): Option[String] =
       bool(pair).some
+  }
+
+  def findComparisonSideCasts[T[_[_]]: BirecursiveT](lSrc: T[SqlExpr], left: String, rSrc: T[SqlExpr], right: String): (String, String) = {
+
+    def castSide(oppositeSideSrc: T[SqlExpr], src: T[SqlExpr], thisStr: String) =
+      oppositeSideSrc.project match {
+        case Constant(Data.Id(_)) => jsonb((src, thisStr))
+        case Constant(Data.Int(_)) => num((src, thisStr))
+        case Constant(Data.Dec(_)) => num((src, thisStr))
+        case Constant(Data.Bool(_)) => bool((src, thisStr))
+        case _ => s"(${text((src, thisStr))})::text"
+      }
+
+    (castSide(rSrc, lSrc, left), castSide(rSrc, lSrc, right))
   }
 
   private def postgresArray(jsonArrayRepr: String) = s"to_jsonb(array_to_json(ARRAY$jsonArrayRepr))"
@@ -219,10 +243,12 @@ object PostgresRenderQuery extends RenderQuery {
       }).right
     case Neg(NumExpr(e)) =>
       s"(-$e)".right
-    case Eq(TextExpr(a1), TextExpr(a2)) =>
-      s"($a1 = $a2)".right
-    case Neq(TextExpr(a1), TextExpr(a2)) =>
-      s"($a1 != $a2)".right
+    case Eq((lSrc, lStr), (rSrc, rStr)) =>
+      val (l, r) = findComparisonSideCasts(lSrc, lStr, rSrc, rStr)
+      s"($l = $r)".right
+    case Neq((lSrc, lStr), (rSrc, rStr)) =>
+      val (l, r) = findComparisonSideCasts(lSrc, lStr, rSrc, rStr)
+      s"($l != $r)".right
     case Lt(NumExpr(a1), NumExpr(a2)) =>
       s"($a1 < $a2)".right
     case Lte(NumExpr(a1), NumExpr(a2)) =>
@@ -284,6 +310,8 @@ object PostgresRenderQuery extends RenderQuery {
         case _ =>
           s"${dataFormatter("", a, JsonCol)}::jsonb".right
       }
+    case Constant(Data.Id(str)) =>
+      DataCodec.render(Data.Id(str)).map(i => s"""'$i'""") \/> NonRepresentableData(Data.Id(str))
     case Constant(v) =>
       DataCodec.render(v) \/> NonRepresentableData(v)
     case Case(wt, e) =>
