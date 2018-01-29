@@ -1,5 +1,5 @@
 /*
- * Copyright 2014–2017 SlamData Inc.
+ * Copyright 2014–2018 SlamData Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import quasar.qscript.{construction, Hole, HoleF, ReduceFunc, ReduceIndexF, SrcH
 import ApplyProvenance.AuthenticatedQSU
 
 import matryoshka._
-import scalaz.{ISet, Monad, Scalaz, StateT}, Scalaz._
+import scalaz.{ISet, Monad, NonEmptyList, Scalaz, StateT}, Scalaz._
 
 final class ReifyBuckets[T[_[_]]: BirecursiveT: EqualT: ShowT] private () extends QSUTTypes[T] {
   import QSUGraph.Extractors._
@@ -49,44 +49,23 @@ final class ReifyBuckets[T[_[_]]: BirecursiveT: EqualT: ShowT] private () extend
           (srcs, buckets0) = res
 
           reifiedG <- srcs.findMin match {
-
             case Some(sym) =>
-              MappableRegion.unaryOf(sym, source) map { fm =>
-                g.overwriteAtRoot(mkReduce(sym, buckets0, reduce as fm))
-              } getOrElseF {
-                val combine = func.ConcatMaps(
-                  func.MakeMapS(GroupedKey, func.LeftSide),
-                  func.MakeMapS(ReduceExprKey, func.RightSide))
+              UnifyTargets[T, G](buildGraph[G](_))(g, sym, NonEmptyList(source.root))(GroupedKey, ReduceExprKey) map {
+                case (newSrc, original, reduceExpr) =>
+                  val buckets =
+                    buckets0.map(_ flatMap { access =>
+                      if (Access.valueHole.isEmpty(access))
+                        func.Hole as access
+                      else
+                        original as access
+                    })
 
-                val buckets =
-                  buckets0.map(_ flatMap { access =>
-                    if (Access.valueHole.isEmpty(access))
-                      func.Hole as access
-                    else
-                      func.ProjectKeyS(func.Hole, GroupedKey) as access
-                  })
-
-                for {
-                  autojoined <- QSUGraph.withName[T, G]("rbu")(
-                    qsu.autojoin2(sym, source.root, combine))
-
-                  qauth0 <- MonadState_[G, QAuth].get
-                  qauth1 <- ApplyProvenance.computeProvenance[T, G](autojoined)
-                               .exec(qauth0).liftM[StateT[?[_], QAuth, ?]]
-
-                  reduceExpr = func.ProjectKeyS(func.Hole, ReduceExprKey)
-                  reduced = g.overwriteAtRoot(mkReduce(autojoined.root, buckets, reduce as reduceExpr))
-
-                  qauth2 <- ApplyProvenance.computeProvenance[T, G](reduced)
-                               .exec(qauth1).liftM[StateT[?[_], QAuth, ?]]
-                  _ <- MonadState_[G, QAuth].put(qauth2)
-                } yield reduced :++ autojoined
+                  g.overwriteAtRoot(mkReduce(newSrc.root, buckets, reduce as reduceExpr.head)) :++ newSrc
               }
 
             case None =>
               g.overwriteAtRoot(mkReduce(source.root, buckets0, reduce as HoleF)).point[G]
           }
-
         } yield reifiedG
 
       case g @ QSSort(source, Nil, keys) =>
@@ -126,6 +105,14 @@ final class ReifyBuckets[T[_[_]]: BirecursiveT: EqualT: ShowT] private () extend
           (ISet.empty[Symbol], HoleF[T] as Access.id[prov.D, Hole](other, SrcHole)).point[F]
       }
     } yield res.unfzip leftMap (_.foldMap(ι))
+
+  private def buildGraph[F[_]: Monad: NameGenerator: PlannerErrorME: RevIdxM: MonadState_[?[_], QAuth]](
+      node: QScriptUniform[Symbol])
+      : F[QSUGraph] =
+    for {
+      newGraph <- QSUGraph.withName[T, F]("rbu")(node)
+      _        <- ApplyProvenance.computeProvenance[T, F](newGraph)
+    } yield newGraph
 
   private def mkReduce[A](
       src: A,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014–2017 SlamData Inc.
+ * Copyright 2014–2018 SlamData Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package quasar.qscript.qsu
 
 import slamdata.Predef._
-import quasar.Qspec
+import quasar.{Qspec, TreeMatchers}
 import quasar.Planner.PlannerError
 import quasar.common.SortDir
 import quasar.contrib.matryoshka._
@@ -26,16 +26,16 @@ import quasar.ejson.{EJson, Fixed}
 import quasar.ejson.implicits._
 import quasar.fp._
 import quasar.qscript.construction
-import quasar.qscript.{MapFuncsCore, MFC}
+import quasar.qscript.MapFuncsCore
 
 import matryoshka._
 import matryoshka.data._
 import matryoshka.data.free._
 import pathy.Path
-import scalaz.{\/, -\/, \/-, EitherT, ICons, INil, Need, NonEmptyList => NEL, StateT}
+import scalaz.{\/, \/-, EitherT, ICons, INil, Need, NonEmptyList => NEL, StateT}
 import scalaz.Scalaz._
 
-object ExtractFreeMapSpec extends Qspec with QSUTTypes[Fix] {
+object ExtractFreeMapSpec extends Qspec with QSUTTypes[Fix] with TreeMatchers {
   import QScriptUniform.{DTrans, Retain, Rotation}
   import QSUGraph.Extractors._
 
@@ -89,10 +89,48 @@ object ExtractFreeMapSpec extends Qspec with QSUTTypes[Fix] {
                 autojoinCondition),
               filterPredicate),
             valueAccess)) =>
-          fm must_= predicate
-          filterPredicate must_= projectStrKey("filter_predicate")
-          valueAccess must_= projectStrKey("filter_source")
-          autojoinCondition must_= makeMap("filter_source", "filter_predicate")
+
+          fm must beTreeEqual(predicate)
+
+          filterPredicate must beTreeEqual(projectStrKey("filter_predicate_0"))
+
+          valueAccess must beTreeEqual(projectStrKey("filter_source"))
+
+          autojoinCondition must beTreeEqual(makeMap("filter_source", "filter_predicate_0"))
+      }
+    }
+
+    "greedily convert mappable function applied to transposed filter predicate" >> {
+      val field = projectStrKey("foo")
+
+      val predicate =
+        func.Gt(func.Hole, func.Constant(ejs.int(42)))
+
+      val graph = QSUGraph.fromTree[Fix](
+        qsu.lpFilter(
+          qsu.read(orders),
+          qsu.autojoin2((
+            qsu.transpose(qsu.map(qsu.read(orders), field), Retain.Values, Rotation.ShiftMap),
+            qsu.cint(42),
+            _(MapFuncsCore.Gt(_, _))))))
+
+      evaluate(extractFM(graph)) must beLike {
+        case \/-(Map(
+            QSFilter(
+              AutoJoin2(
+                Read(`orders`),
+                Transpose(Map(Read(`orders`), fm), Retain.Values, Rotation.ShiftMap),
+                autojoinCondition),
+              filterPredicate),
+            valueAccess)) =>
+
+          fm must beTreeEqual(field)
+
+          filterPredicate must beTreeEqual(predicate >> projectStrKey("filter_predicate_0"))
+
+          valueAccess must beTreeEqual(projectStrKey("filter_source"))
+
+          autojoinCondition must beTreeEqual(makeMap("filter_source", "filter_predicate_0"))
       }
     }
 
@@ -126,10 +164,47 @@ object ExtractFreeMapSpec extends Qspec with QSUTTypes[Fix] {
                 autojoinCondition),
               DTrans.Group(groupKey)),
             valueAccess)) =>
-          fm must_= key
-          groupKey must_= projectStrKey("group_key")
-          valueAccess must_= projectStrKey("group_source")
-          autojoinCondition must_= makeMap("group_source", "group_key")
+
+          fm must beTreeEqual(key)
+
+          groupKey must beTreeEqual(projectStrKey("group_key_0"))
+
+          valueAccess must beTreeEqual(projectStrKey("group_source"))
+
+          autojoinCondition must beTreeEqual(makeMap("group_source", "group_key_0"))
+      }
+    }
+
+    "greedily convert mappable function applied to transposed group key" >> {
+      val key = projectStrKey("foo")
+
+      val f =
+        func.Add(func.Modulo(func.Hole, func.Constant(ejs.int(13))), func.Constant(ejs.int(1)))
+
+      val graph = QSUGraph.fromTree[Fix](
+        qsu.groupBy(
+          qsu.read(orders),
+          qsu.map(
+            qsu.transpose(qsu.map(qsu.read(orders), key), Retain.Values, Rotation.ShiftMap),
+            f)))
+
+      evaluate(extractFM(graph)) must beLike {
+        case \/-(Map(
+            DimEdit(
+              AutoJoin2(
+                Read(`orders`),
+                Transpose(Map(Read(`orders`), fm), Retain.Values, Rotation.ShiftMap),
+                autojoinCondition),
+              DTrans.Group(groupKey)),
+            valueAccess)) =>
+
+          fm must beTreeEqual(key)
+
+          groupKey must beTreeEqual(f >> projectStrKey("group_key_0"))
+
+          valueAccess must beTreeEqual(projectStrKey("group_source"))
+
+          autojoinCondition must beTreeEqual(makeMap("group_source", "group_key_0"))
       }
     }
 
@@ -176,16 +251,15 @@ object ExtractFreeMapSpec extends Qspec with QSUTTypes[Fix] {
               NEL((fm1, SortDir.Ascending), ICons((fm2, SortDir.Descending), INil()))),
             valueAccess)) => {
 
-          val genName: String = (fm2.resume match {
-            case -\/(MFC(MapFuncsCore.ProjectKey(_, MapFuncsCore.StrLit(name)))) => name.some
-            case _ => None
-          }).get
+          fm must beTreeEqual(key2)
 
-          fm must_= key2
-          fm1 must_= key1 >> projectStrKey("sort_source")
-          fm2 must_= projectStrKey(genName)
-          valueAccess must_= projectStrKey("sort_source")
-          autojoinCondition must_= makeMap("sort_source", genName)
+          fm1 must beTreeEqual(key1 >> projectStrKey("sort_source"))
+
+          fm2 must beTreeEqual(projectStrKey("sort_key_0"))
+
+          valueAccess must beTreeEqual(projectStrKey("sort_source"))
+
+          autojoinCondition must beTreeEqual(makeMap("sort_source", "sort_key_0"))
         }
       }
     }
@@ -220,27 +294,25 @@ object ExtractFreeMapSpec extends Qspec with QSUTTypes[Fix] {
                 (fm1, SortDir.Ascending), ICons((fm2, SortDir.Descending), ICons((fm3, SortDir.Descending), ICons((fm4, SortDir.Ascending), INil()))))),
             valueAccess)) => {
 
-          val genName2: String = (fm2.resume match {
-            case -\/(MFC(MapFuncsCore.ProjectKey(_, MapFuncsCore.StrLit(name)))) => name.some
-            case _ => None
-          }).get
+          innerFM must beTreeEqual(key2)
 
-          val genName4: String = (fm4.resume match {
-            case -\/(MFC(MapFuncsCore.ProjectKey(_, MapFuncsCore.StrLit(name)))) => name.some
-            case _ => None
-          }).get
+          outerFM must beTreeEqual(key4)
 
-          innerFM must_= key2
-          outerFM must_= key4
-          fm1 must_= key1 >> projectStrKey("sort_source")
-          fm2 must_= projectStrKey(genName2)
-          fm3 must_= key3 >> projectStrKey("sort_source")
-          fm4 must_= projectStrKey(genName4)
-          valueAccess must_= projectStrKey("sort_source")
-          innerAutojoinCondition must_= makeMap("sort_source", genName2)
-          outerAutojoinCondition must_= func.ConcatMaps(
+          fm1 must beTreeEqual(key1 >> projectStrKey("sort_source"))
+
+          fm2 must beTreeEqual(projectStrKey("sort_key_0"))
+
+          fm3 must beTreeEqual(key3 >> projectStrKey("sort_source"))
+
+          fm4 must beTreeEqual(projectStrKey("sort_key_1"))
+
+          valueAccess must beTreeEqual(projectStrKey("sort_source"))
+
+          innerAutojoinCondition must beTreeEqual(makeMap("sort_source", "sort_key_0"))
+
+          outerAutojoinCondition must beTreeEqual(func.ConcatMaps(
             func.LeftSide,
-            func.MakeMap(func.Constant(ejs.str(genName4)), func.RightSide))
+            func.MakeMap(func.Constant(ejs.str("sort_key_1")), func.RightSide)))
         }
       }
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014–2017 SlamData Inc.
+ * Copyright 2014–2018 SlamData Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,12 @@ import slamdata.Predef._
 
 import quasar.NameGenerator
 import quasar.Planner.{InternalError, PlannerErrorME}
-import quasar.common.SortDir
+import quasar.fp.symbolOrder
 import quasar.qscript.{construction, JoinSide, LeftSide, RightSide}
 import quasar.sql.JoinDir
 
 import matryoshka.BirecursiveT
-import scalaz.{\/, -\/, \/-, Monad, NonEmptyList => NEL, Scalaz, StateT}, Scalaz._
+import scalaz.{Monad, NonEmptyList, Scalaz, StateT}, Scalaz._
 
 /** Extracts `MapFunc` expressions from operations by requiring an argument
   * to be a function of one or more sibling arguments and creating an
@@ -50,16 +50,14 @@ final class ExtractFreeMap[T[_[_]]: BirecursiveT] private () extends QSUTTypes[T
   private def extract[F[_]: Monad: NameGenerator: PlannerErrorME: RevIdxM]
       : PartialFunction[QSUGraph, F[QSUGraph]] = {
 
-    // This will only work once #3170 is completed.
-    // We need access to the group key through the `Map`.
     case graph @ Extractors.GroupBy(src, key) =>
-      autojoinFreeMap[F](graph, src.root, key.root)("group_source", "group_key") {
-        case (sym, fm) => DimEdit(sym, DTrans.Group(fm))
+      unifyShapePreserving[F](graph, src.root, NonEmptyList(key.root))("group_source", "group_key") {
+        case (sym, fms) => DimEdit(sym, DTrans.Group(fms.head))
       }
 
     case graph @ Extractors.LPFilter(src, predicate) =>
-      autojoinFreeMap[F](graph, src.root, predicate.root)("filter_source", "filter_predicate") {
-        case (sym, fm) => QSFilter(sym, fm)
+      unifyShapePreserving[F](graph, src.root, NonEmptyList(predicate.root))("filter_source", "filter_predicate") {
+        case (sym, fms) => QSFilter(sym, fms.head)
       }
 
     case graph @ Extractors.LPJoin(left, right, cond, jtype, lref, rref) =>
@@ -78,98 +76,35 @@ final class ExtractFreeMap[T[_[_]]: BirecursiveT] private () extends QSUTTypes[T
         }
 
     case graph @ Extractors.LPSort(src, keys) =>
-      val access: NEL[(FreeMap \/ Symbol, SortDir)] =
-        keys.map(_.leftMap { key =>
-          MappableRegion.unaryOf(src.root, graph refocus key.root) match {
-            case Some(fm) => fm.left[Symbol]
-            case None => key.root.right[FreeMap]
-          }
-        })
-
-      val nonmappable: List[Symbol] = access.toList collect {
-        case ((\/-(sym), _)) => sym
+      unifyShapePreserving[F](graph, src.root, keys map (_._1.root))("sort_source", "sort_key") {
+        case (sym, fms) => QSSort(sym, Nil, fms fzip keys.seconds)
       }
-
-      def autojoinAll(head: Symbol, tail: List[Symbol]): F[QSUGraph] =
-        for {
-          join <- withName[F](
-            AutoJoin2(src.root, head,
-              func.StaticMapS(
-                "sort_source" -> func.LeftSide,
-                head.name -> func.RightSide)))
-
-          updatedG = join :++ graph
-
-          result <- tail.foldLeftM(updatedG) {
-            case (g, sym) =>
-              val join = withName[F](
-                AutoJoin2(g.root, sym,
-                  func.ConcatMaps(
-                    func.LeftSide,
-                    func.MakeMapS(sym.name, func.RightSide))))
-
-              join map (_ :++ g)
-          }
-        } yield result
-
-      nonmappable match {
-        case Nil =>
-          access.toList collect {
-            case ((-\/(fm), dir)) => (fm, dir)
-          } match {
-            case Nil =>
-              PlannerErrorME[F].raiseError[QSUGraph](InternalError(s"No sort keys found.", None))
-            case head :: tail =>
-              graph.overwriteAtRoot(QSSort(src.root, Nil, NEL(head, tail: _*))).point[F]
-          }
-
-        case head :: tail =>
-          for {
-            joined <- autojoinAll(head, tail)
-
-            order = access.map(_.leftMap {
-              case -\/(fm) => fm >> func.ProjectKeyS(func.Hole, "sort_source")
-              case \/-(sym) => func.ProjectKeyS(func.Hole, sym.name)
-            })
-
-            sort <- withName[F](QSSort(joined.root, Nil, order))
-
-            result = graph.overwriteAtRoot(
-              Map(sort.root, func.ProjectKeyS(func.Hole, "sort_source")))
-
-          } yield result :++ sort :++ joined
-      }
-    }
-
-  private def autojoinFreeMap[F[_]: Monad: NameGenerator: PlannerErrorME: RevIdxM]
-    (graph: QSUGraph, src: Symbol, target: Symbol)
-    (srcName: String, targetName: String)
-    (makeQSU: (Symbol, FreeMap) => QSU[Symbol])
-      : F[QSUGraph] =
-    MappableRegion.unaryOf(src, graph refocus target)
-      .map(makeQSU(src, _)) match {
-
-        case Some(qs) =>
-          graph.overwriteAtRoot(qs).point[F]
-
-        case None =>
-          val combine: JoinFunc = func.StaticMapS(
-            srcName -> func.LeftSide,
-            targetName -> func.RightSide)
-
-          for {
-            join <- withName[F](AutoJoin2(src, target, combine))
-            inter <- withName[F](makeQSU(join.root, func.ProjectKeyS(func.Hole, targetName)))
-            result = graph.overwriteAtRoot(Map(inter.root, func.ProjectKeyS(func.Hole, srcName)))
-
-          } yield result :++ inter :++ join
-      }
+  }
 
   private def replaceRefs(g: QSUGraph, l: Symbol, r: Symbol)
       : Symbol => Option[JoinSide] =
     s => g.vertices.get(s) collect {
       case JoinSideRef(`l`) => LeftSide
       case JoinSideRef(`r`) => RightSide
+    }
+
+  private def unifyShapePreserving[F[_]: Monad: NameGenerator: RevIdxM](
+      graph: QSUGraph,
+      source: Symbol,
+      targets: NonEmptyList[Symbol])(
+      sourceName: String,
+      targetPrefix: String)(
+      buildNode: (Symbol, NonEmptyList[FreeMap]) => QScriptUniform[Symbol]): F[QSUGraph] =
+    UnifyTargets[T, F](withName[F](_))(graph, source, targets)(sourceName, targetPrefix) flatMap {
+      case (newSrc, original, targetExprs) =>
+        val node = buildNode(newSrc.root, targetExprs)
+
+        if (newSrc.root === source)
+          graph.overwriteAtRoot(node).point[F]
+        else
+          withName[F](node) map { inter =>
+            graph.overwriteAtRoot(Map(inter.root, original)) :++ inter :++ newSrc
+          }
     }
 
   private def withName[F[_]: Monad: NameGenerator: RevIdxM](node: QScriptUniform[Symbol]): F[QSUGraph] =

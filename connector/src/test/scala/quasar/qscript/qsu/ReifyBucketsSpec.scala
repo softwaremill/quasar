@@ -1,5 +1,5 @@
 /*
- * Copyright 2014–2017 SlamData Inc.
+ * Copyright 2014–2018 SlamData Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -173,7 +173,111 @@ object ReifyBucketsSpec extends Qspec with QSUTTypes[Fix] with TreeMatchers {
         func.ProjectKeyS(func.ProjectKeyS(func.Hole, "grouped"), "city") map (Access.value[Fix[EJson], Hole](_))
 
       val expSumExpr =
-        func.ProjectKeyS(func.Hole, "reduce_expr")
+        func.ProjectKeyS(func.Hole, "reduce_expr_0")
+
+      reifyBuckets(tree) must beLike {
+        case \/-(
+          AutoJoin2(
+            AutoJoin2(
+              city,
+              QSReduce(
+                LeftShift(
+                  Read(_),
+                  Embed(CoEnv(-\/(SrcHole))),
+                  ExcludeId,
+                  _,
+                  _,
+                  Rotation.ShiftMap),
+                List(arbBucket),
+                List(ReduceFuncs.Arbitrary(arbExpr)),
+                _),
+              _),
+            AutoJoin2(
+              str1,
+              QSReduce(
+                AutoJoin2(
+                  LeftShift(
+                    Read(_),
+                    Embed(CoEnv(-\/(SrcHole))),
+                    ExcludeId,
+                    _,
+                    _,
+                    Rotation.ShiftMap),
+                  LeftShift(
+                    AutoJoin2(
+                      LeftShift(
+                        Read(_),
+                        Embed(CoEnv(-\/(SrcHole))),
+                        ExcludeId,
+                        _,
+                        _,
+                        Rotation.ShiftMap),
+                      loc,
+                      _),
+                    Embed(CoEnv(-\/(SrcHole))),
+                    ExcludeId,
+                    tgt,
+                    _,
+                    Rotation.FlattenArray),
+                  _),
+                List(sumBucket),
+                List(ReduceFuncs.Sum(sumExpr)),
+                _),
+              _),
+            _)) =>
+
+          arbBucket must beTreeEqual(expArbBucket)
+          arbExpr must beTreeEqual(expArbExpr)
+          sumBucket must beTreeEqual(expSumBucket)
+          sumExpr must beTreeEqual(expSumExpr)
+      }
+    }
+
+    "greedily extract mappable regions from  dimension-altering reduce expressions" >> {
+      // select city, sum(baz[*].quux) from zips group by city
+      val src =
+        qsu.dimEdit(
+          qsu.tread1("zips"),
+          DTrans.Group(func.ProjectKeyS(func.Hole, "city")))
+
+      val tree =
+        qsu.autojoin2((
+          qsu.autojoin2((
+            qsu.cstr("city"),
+            qsu.lpReduce(
+              qsu.autojoin2((
+                src,
+                qsu.cstr("city"),
+                _(MapFuncsCore.ProjectKey(_, _)))),
+              ReduceFuncs.Arbitrary(())),
+            _(MapFuncsCore.MakeMap(_, _)))),
+          qsu.autojoin2((
+            qsu.cstr("1"),
+            qsu.lpReduce(
+              qsu.map(
+                qsu.transpose(
+                  qsu.autojoin2((
+                    src,
+                    qsu.cstr("baz"),
+                    _(MapFuncsCore.ProjectKey(_, _)))),
+                  Retain.Values,
+                  Rotation.FlattenArray),
+                func.ProjectKeyS(func.Hole, "quux")),
+              ReduceFuncs.Sum(())),
+            _(MapFuncsCore.MakeMap(_, _)))),
+          _(MapFuncsCore.ConcatMaps(_, _))))
+
+      val expArbBucket =
+        func.ProjectKeyS(func.Hole, "city") map (Access.value[Fix[EJson], Hole](_))
+
+      val expArbExpr =
+        func.ProjectKeyS(func.Hole, "city")
+
+      val expSumBucket =
+        func.ProjectKeyS(func.ProjectKeyS(func.Hole, "grouped"), "city") map (Access.value[Fix[EJson], Hole](_))
+
+      val expSumExpr =
+        func.ProjectKeyS(func.ProjectKeyS(func.Hole, "reduce_expr_0"), "quux")
 
       reifyBuckets(tree) must beLike {
         case \/-(

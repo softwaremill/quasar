@@ -1,5 +1,5 @@
 /*
- * Copyright 2014–2017 SlamData Inc.
+ * Copyright 2014–2018 SlamData Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -353,13 +353,26 @@ object MapFuncCore {
   private def rewrite[T[_[_]]: BirecursiveT: EqualT, A: Equal]:
       CoMapFuncR[T, A] => Option[CoMapFuncR[T, A]] =
     _.run.toOption >>= (MFC.unapply _) >>= {
-      case Eq(v1, v2) if v1 ≟ v2 =>
-        rollMF[T, A](
-          MFC(Constant(EJson.fromCommon(ejson.Bool[T[EJson]](true))))).some
+      case And(BoolLit(true), b) => some(b.project)
+
+      case And(a, BoolLit(true)) => some(a.project)
+
+      case And(BoolLit(false), _) => some(BoolLit[T, A](false).project)
+
+      case And(_, BoolLit(false)) => some(BoolLit[T, A](false).project)
+
+      case Or(a, BoolLit(false)) => some(a.project)
+
+      case Or(BoolLit(false), b) => some(b.project)
+
+      case Or(_, BoolLit(true)) => some(BoolLit[T, A](true).project)
+
+      case Or(BoolLit(true), _) => some(BoolLit[T, A](true).project)
+
+      case Eq(v1, v2) if v1 ≟ v2 => some(BoolLit[T, A](true).project)
 
       case Eq(ExtractFunc(Constant(v1)), ExtractFunc(Constant(v2))) =>
-        rollMF[T, A](
-          MFC(Constant(EJson.fromCommon(ejson.Bool[T[EJson]](v1 ≟ v2))))).some
+        some(BoolLit[T, A](v1 ≟ v2).project)
 
       case DeleteKey(
         Embed(StaticMap(map)),

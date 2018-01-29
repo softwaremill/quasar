@@ -4,10 +4,14 @@
     "couchbase":         "skip",
     "marklogic_json":    "skip",
     "marklogic_xml":     "skip",
-    "mimir":             "ignoreFieldOrder"
+    "mimir":             "ignoreFieldOrder",
+    "mongodb_3_2":       "pending",
+    "mongodb_3_4":       "pending",
+    "mongodb_read_only": "pending"
   },
   "NB": "skipped on couchbase due to lack of general join",
   "NB": "skipped on marklogic due to timeout",
+  "NB": "pending for mongodb due to MongoDB Error: Command failed with error 13070: 'value too large to reduce'",
   "data": ["demo/patients.data", "extraSmallZips.data"],
   "query": "SELECT first_name, last_name FROM `demo/patients` AS p where state in (SELECT state FROM extraSmallZips) ORDER BY last_name, first_name",
   "predicate": "initial",
